@@ -1,0 +1,134 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0d1117; /* Dark base */
+  --background-alt: #111b27; /* Panels */
+  --background-soft: #162435; /* Subtle blocks */
+  --foreground: #f1f5f9;
+  --foreground-soft: #cbd5e1;
+  --accent: #3b82f6;
+  --accent-alt: #6366f1;
+  --accent-cyan: #06b6d4;
+  --border-color: rgba(255,255,255,0.08);
+  --ring-color: rgba(59,130,246,0.4);
+}
+
+/* Custom theme tokens (originally declared with @theme inline - commented for compatibility) */
+/* @theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+} */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: radial-gradient(circle at 25% 15%, rgba(56,189,248,0.12), transparent 60%),
+              radial-gradient(circle at 80% 70%, rgba(99,102,241,0.15), transparent 65%),
+              var(--background);
+  color: var(--foreground);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+}
+
+/* Utility aesthetic enhancements */
+html, body { scroll-behavior: smooth; }
+
+/* Soft radial background pattern (used on hero & light sections) */
+.pattern-bg {
+  background:
+    radial-gradient(circle at 25% 25%, rgba(59,130,246,0.15), transparent 62%),
+    radial-gradient(circle at 75% 30%, rgba(99,102,241,0.18), transparent 58%),
+    radial-gradient(circle at 50% 80%, rgba(6,182,212,0.20), transparent 60%);
+}
+
+/* Glass / translucent panel */
+.glass {
+  background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid var(--border-color);
+}
+
+/* Dark panel */
+.panel-dark {
+  background: linear-gradient(160deg, var(--background-alt) 0%, var(--background-soft) 100%);
+  border: 1px solid var(--border-color);
+}
+
+.nav-active {
+  color: #fff !important;
+}
+.nav-active .nav-underline { width: 100% !important; opacity: 1 !important; }
+
+/* Keyframes */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.6); opacity: 0.6; }
+  80%,100% { transform: scale(1.4); opacity: 0; }
+}
+
+.animate-fade-up { animation: fade-up 0.8s cubic-bezier(.4,.1,.2,1) forwards; }
+
+/* Delays */
+[data-anim="1"] { animation-delay: .05s; }
+[data-anim="2"] { animation-delay: .15s; }
+[data-anim="3"] { animation-delay: .25s; }
+[data-anim="4"] { animation-delay: .35s; }
+[data-anim="5"] { animation-delay: .45s; }
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(90deg,#2563eb 0%,#6366f1 50%,#06b6d4 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+/* Service card fancy border */
+.service-card {
+  position: relative;
+  isolation: isolate;
+}
+.service-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 2px;
+  border-radius: 1rem;
+  background: linear-gradient(140deg,rgba(59,130,246,.6),rgba(99,102,241,.6),rgba(56,189,248,.6));
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity .4s;
+  pointer-events: none;
+}
+.service-card:hover::before { opacity: 1; }
+
+/* Floating CTA pulse ring */
+.floating-cta::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: radial-gradient(circle at center, rgba(59,130,246,.55), rgba(59,130,246,0));
+  animation: pulse-ring 2.4s ease-out infinite;
+  z-index: -1;
+}
+
+/* FAQ accordion transitions */
+.faq-item-content { transition: grid-template-rows .35s ease, padding .3s ease; }
+.faq-item-content[data-open="false"] { grid-template-rows: 0fr; padding-top: 0; }
+.faq-item-content[data-open="true"] { grid-template-rows: 1fr; }
+
