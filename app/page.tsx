@@ -13,8 +13,332 @@ const NAV_ITEMS: NavItem[] = [
   { href: '#contato', label: 'Contato' },
 ];
 
+interface ProfissionalPublico {
+  id: string;
+  nome: string;
+  especialidade: string;
+  clinicaIds: string[]; // Mudança: agora é um array de IDs
+  cidade: string;
+  distancia: number;
+  avaliacao: number;
+  numeroAvaliacoes: number;
+  proximasConsultas: string[];
+}
+
+interface Clinica {
+  id: string;
+  nome: string;
+  endereco: string;
+  telefone: string;
+  especialidades: string[];
+}
+
 export default function Home() {
   const [audienceTab, setAudienceTab] = useState<'pacientes' | 'clinicas'>('pacientes');
+  
+  // Estados para o sistema de busca
+  const [termoBusca, setTermoBusca] = useState('');
+  const [cidadeBusca, setCidadeBusca] = useState('');
+  const [mostrarSugestoes, setMostrarSugestoes] = useState(false);
+  const [sugestoesProfissionais, setSugestoesProfissionais] = useState<ProfissionalPublico[]>([]);
+  const [sugestoesEspecialidades, setSugestoesEspecialidades] = useState<string[]>([]);
+  
+  // Estados para agendamento integrado
+  const [profissionalSelecionado, setProfissionalSelecionado] = useState<ProfissionalPublico | null>(null);
+  const [especialidadeSelecionada, setEspecialidadeSelecionada] = useState('');
+  const [clinicaSelecionada, setClinicaSelecionada] = useState<Clinica | null>(null);
+  const [dataSelecionada, setDataSelecionada] = useState('');
+  const [horarioSelecionado, setHorarioSelecionado] = useState('');
+  const [profissionaisDaEspecialidade, setProfissionaisDaEspecialidade] = useState<ProfissionalPublico[]>([]);
+  const [mostrarCalendario, setMostrarCalendario] = useState(false);
+  
+  // Estados para o calendário
+  const [dataAtual, setDataAtual] = useState(new Date());
+  const [tipoVisualizacao, setTipoVisualizacao] = useState<'semana' | 'mes'>('semana');
+
+  // Função para gerar horários disponíveis por dia
+  const getHorariosPorDia = (data: Date) => {
+    const dataStr = data.toISOString().split('T')[0];
+    const horariosPadrao = [
+      '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+      '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30'
+    ];
+    
+    // Simular alguns horários ocupados
+    const ocupados = Math.random() > 0.3 ? 
+      horariosPadrao.slice(0, Math.floor(Math.random() * 4)) : [];
+    
+    return horariosPadrao.filter(h => !ocupados.includes(h));
+  };
+
+  // Função para gerar dias da semana
+  const getWeekDays = (baseDate: Date) => {
+    const startOfWeek = new Date(baseDate);
+    const day = startOfWeek.getDay();
+    const diff = startOfWeek.getDate() - day;
+    startOfWeek.setDate(diff);
+    
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(startOfWeek);
+      date.setDate(startOfWeek.getDate() + i);
+      days.push(date);
+    }
+    return days;
+  };
+
+  // Função para navegar no calendário
+  const navegarCalendario = (direcao: 'anterior' | 'proximo') => {
+    const novaData = new Date(dataAtual);
+    if (tipoVisualizacao === 'semana') {
+      novaData.setDate(dataAtual.getDate() + (direcao === 'proximo' ? 7 : -7));
+    } else {
+      novaData.setMonth(dataAtual.getMonth() + (direcao === 'proximo' ? 1 : -1));
+    }
+    setDataAtual(novaData);
+  };
+
+  // Função para formatar data
+  const formatarData = (data: Date) => {
+    return data.toLocaleDateString('pt-BR', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric' 
+    });
+  };
+
+  // Função para formatar dia da semana
+  const formatarDiaSemana = (data: Date) => {
+    return data.toLocaleDateString('pt-BR', { weekday: 'short' });
+  };
+
+  // Função para selecionar horário
+  const selecionarHorario = (data: Date, horario: string) => {
+    setDataSelecionada(data.toISOString().split('T')[0]);
+    setHorarioSelecionado(horario);
+  };
+
+  // Dados mockados (mesmos da área do cliente)
+  const profissionaisDisponiveis: ProfissionalPublico[] = [
+    {
+      id: '1',
+      nome: 'Dr. Carlos Silva',
+      especialidade: 'Cardiologia',
+      clinicaIds: ['1', '2'], // Trabalha em 2 clínicas
+      cidade: 'São Paulo',
+      distancia: 2.5,
+      avaliacao: 4.8,
+      numeroAvaliacoes: 127,
+      proximasConsultas: ['2025-09-15', '2025-09-16', '2025-09-18']
+    },
+    {
+      id: '2',
+      nome: 'Dra. Ana Santos',
+      especialidade: 'Dermatologia',
+      clinicaIds: ['1', '3'], // Trabalha em 2 clínicas
+      cidade: 'São Paulo',
+      distancia: 2.5,
+      avaliacao: 4.9,
+      numeroAvaliacoes: 203,
+      proximasConsultas: ['2025-09-14', '2025-09-17', '2025-09-19']
+    },
+    {
+      id: '3',
+      nome: 'Dr. Roberto Lima',
+      especialidade: 'Ortopedia',
+      clinicaIds: ['2', '4'], // Trabalha em 2 clínicas
+      cidade: 'Guarulhos',
+      distancia: 8.2,
+      avaliacao: 4.7,
+      numeroAvaliacoes: 89,
+      proximasConsultas: ['2025-09-16', '2025-09-20', '2025-09-23']
+    },
+    {
+      id: '4',
+      nome: 'Dra. Mariana Costa',
+      especialidade: 'Psiquiatria',
+      clinicaIds: ['1', '3', '4'], // Trabalha em 3 clínicas
+      cidade: 'Osasco',
+      distancia: 12.1,
+      avaliacao: 4.9,
+      numeroAvaliacoes: 156,
+      proximasConsultas: ['2025-09-15', '2025-09-18', '2025-09-22']
+    },
+    {
+      id: '5',
+      nome: 'Dr. João Pereira',
+      especialidade: 'Psicologia',
+      clinicaIds: ['3', '4'], // Trabalha em 2 clínicas
+      cidade: 'São Paulo',
+      distancia: 5.3,
+      avaliacao: 4.6,
+      numeroAvaliacoes: 94,
+      proximasConsultas: ['2025-09-17', '2025-09-19', '2025-09-24']
+    },
+    {
+      id: '6',
+      nome: 'Dra. Fernanda Oliveira',
+      especialidade: 'Ginecologia',
+      clinicaIds: ['1', '2', '4'], // Trabalha em 3 clínicas
+      cidade: 'Guarulhos',
+      distancia: 8.2,
+      avaliacao: 4.8,
+      numeroAvaliacoes: 178,
+      proximasConsultas: ['2025-09-14', '2025-09-16', '2025-09-21']
+    },
+    {
+      id: '7',
+      nome: 'Dr. Paulo Mendes',
+      especialidade: 'Neurologia',
+      clinicaIds: ['1', '2', '3'], // Trabalha em 3 clínicas
+      cidade: 'São Paulo',
+      distancia: 2.5,
+      avaliacao: 4.7,
+      numeroAvaliacoes: 112,
+      proximasConsultas: ['2025-09-18', '2025-09-20', '2025-09-25']
+    }
+  ];
+
+  const clinicasDisponiveis: Clinica[] = [
+    {
+      id: '1',
+      nome: 'Clínica Saúde Prime',
+      endereco: 'Av. Paulista, 1000 - São Paulo/SP',
+      telefone: '(11) 3000-0001',
+      especialidades: ['Cardiologia', 'Dermatologia', 'Neurologia']
+    },
+    {
+      id: '2',
+      nome: 'Centro Médico Excellence',
+      endereco: 'R. das Flores, 500 - Guarulhos/SP',
+      telefone: '(11) 3000-0002',
+      especialidades: ['Ortopedia', 'Ginecologia']
+    },
+    {
+      id: '3',
+      nome: 'Instituto de Saúde Mental',
+      endereco: 'Av. dos Estados, 300 - Osasco/SP',
+      telefone: '(11) 3000-0003',
+      especialidades: ['Psiquiatria']
+    },
+    {
+      id: '4',
+      nome: 'Clínica Bem Estar',
+      endereco: 'R. Augusta, 800 - São Paulo/SP',
+      telefone: '(11) 3000-0004',
+      especialidades: ['Psicologia']
+    }
+  ];
+
+  const todasEspecialidades = [...new Set(profissionaisDisponiveis.map(p => p.especialidade))];
+
+  // Função de busca
+  const handleBusca = (termo: string) => {
+    setTermoBusca(termo);
+    
+    if (termo.length === 0) {
+      setSugestoesProfissionais([]);
+      setSugestoesEspecialidades([]);
+      setMostrarSugestoes(false);
+      return;
+    }
+
+    // Buscar especialidades
+    const especialidadesFiltradas = todasEspecialidades.filter(esp =>
+      esp.toLowerCase().includes(termo.toLowerCase())
+    );
+
+    // Buscar profissionais
+    const profissionaisFiltrados = profissionaisDisponiveis.filter(prof =>
+      prof.nome.toLowerCase().includes(termo.toLowerCase()) ||
+      prof.especialidade.toLowerCase().includes(termo.toLowerCase())
+    );
+
+    setSugestoesEspecialidades(especialidadesFiltradas);
+    setSugestoesProfissionais(profissionaisFiltrados);
+    setMostrarSugestoes(true);
+  };
+
+  const selecionarProfissional = (profissional: ProfissionalPublico) => {
+    setProfissionalSelecionado(profissional);
+    setEspecialidadeSelecionada('');
+    setProfissionaisDaEspecialidade([]);
+    setTermoBusca(profissional.nome);
+    setMostrarSugestoes(false);
+    setMostrarCalendario(true);
+  };
+
+  const selecionarEspecialidade = (especialidade: string) => {
+    setEspecialidadeSelecionada(especialidade);
+    setProfissionalSelecionado(null);
+    setTermoBusca(especialidade);
+    setMostrarSugestoes(false);
+    
+    // Filtrar profissionais da especialidade selecionada
+    const profsFiltrados = profissionaisDisponiveis.filter(p => 
+      p.especialidade === especialidade &&
+      (cidadeBusca === '' || p.cidade.toLowerCase().includes(cidadeBusca.toLowerCase()))
+    );
+    setProfissionaisDaEspecialidade(profsFiltrados);
+    setMostrarCalendario(true);
+  };
+
+  const realizarBusca = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (termoBusca.trim()) {
+      // Se há um profissional ou especialidade selecionados, mostrar calendário
+      if (profissionalSelecionado || especialidadeSelecionada) {
+        setMostrarCalendario(true);
+      } else {
+        // Buscar automaticamente
+        const profissionalEncontrado = profissionaisDisponiveis.find(p =>
+          p.nome.toLowerCase().includes(termoBusca.toLowerCase())
+        );
+        const especialidadeEncontrada = todasEspecialidades.find(e =>
+          e.toLowerCase().includes(termoBusca.toLowerCase())
+        );
+
+        if (profissionalEncontrado) {
+          selecionarProfissional(profissionalEncontrado);
+        } else if (especialidadeEncontrada) {
+          selecionarEspecialidade(especialidadeEncontrada);
+        }
+      }
+    }
+  };
+
+  const resetarBusca = () => {
+    setTermoBusca('');
+    setCidadeBusca('');
+    setProfissionalSelecionado(null);
+    setEspecialidadeSelecionada('');
+    setProfissionaisDaEspecialidade([]);
+    setClinicaSelecionada(null);
+    setDataSelecionada('');
+    setHorarioSelecionado('');
+    setMostrarCalendario(false);
+    setMostrarSugestoes(false);
+  };
+
+  // Função para obter clínicas disponíveis para um profissional
+  const getClinicasDisponiveis = () => {
+    if (profissionalSelecionado) {
+      return clinicasDisponiveis.filter(c => profissionalSelecionado.clinicaIds.includes(c.id));
+    }
+    if (especialidadeSelecionada && profissionaisDaEspecialidade.length > 0) {
+      const clinicaIds = [...new Set(profissionaisDaEspecialidade.flatMap(p => p.clinicaIds))];
+      return clinicasDisponiveis.filter(c => clinicaIds.includes(c.id));
+    }
+    return [];
+  };
+
+  // Função para confirmar agendamento
+  const confirmarAgendamento = () => {
+    if (profissionalSelecionado && clinicaSelecionada && dataSelecionada && horarioSelecionado) {
+      alert(`Consulta agendada com sucesso!\n\nProfissional: ${profissionalSelecionado.nome}\nClínica: ${clinicaSelecionada.nome}\nData: ${new Date(dataSelecionada).toLocaleDateString('pt-BR')}\nHorário: ${horarioSelecionado}`);
+      resetarBusca();
+    }
+  };
   useEffect(() => {
     const navLinks: HTMLAnchorElement[] = Array.from(document.querySelectorAll('header nav a'));
     const sections: HTMLElement[] = Array.from(document.querySelectorAll('section[id]'));
@@ -88,23 +412,363 @@ export default function Home() {
                   </div>
                 </div>
                 {audienceTab === 'pacientes' && (
-                  <form onSubmit={(e)=>{e.preventDefault();}} className="grid gap-4 md:grid-cols-[2fr,1.5fr,1fr,auto]">
-                    <div>
-                      <label className="block text-[10px] uppercase tracking-wide text-gray-400 mb-1 font-semibold">Especialidade ou Profissional</label>
-                      <input placeholder="Cardiologista, Dr. Silva..." className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-600 text-gray-100 placeholder:text-gray-500" />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] uppercase tracking-wide text-gray-400 mb-1 font-semibold">Localização</label>
-                      <input placeholder="Cidade ou Bairro" className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-600 text-gray-100 placeholder:text-gray-500" />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] uppercase tracking-wide text-gray-400 mb-1 font-semibold">Data (Opcional)</label>
-                      <input type="date" className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-600 text-gray-100" />
-                    </div>
-                    <div className="flex items-end">
-                      <button type="submit" className="w-full h-[52px] rounded-lg font-semibold bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 text-white shadow hover:brightness-110 transition">Buscar</button>
-                    </div>
-                  </form>
+                  <div className="space-y-6">
+                    {/* Busca Simplificada */}
+                    {!mostrarCalendario && (
+                      <form onSubmit={realizarBusca} className="space-y-4">
+                        <div className="grid gap-4 md:grid-cols-[2fr,1fr,auto]">
+                          {/* Barra de Busca Principal */}
+                          <div className="relative">
+                            <div className="relative">
+                              <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                              </svg>
+                              <input
+                                type="text"
+                                placeholder="Especialidade ou nome do médico"
+                                value={termoBusca}
+                                onChange={(e) => handleBusca(e.target.value)}
+                                onFocus={() => setMostrarSugestoes(termoBusca.length > 0)}
+                                className="w-full bg-white/10 border border-white/20 rounded-lg pl-10 pr-4 py-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg"
+                              />
+                            </div>
+                            
+                            {/* Sugestões */}
+                            {mostrarSugestoes && (sugestoesProfissionais.length > 0 || sugestoesEspecialidades.length > 0) && (
+                              <div className="absolute top-full left-0 right-0 mt-2 bg-[#0e1822] border border-white/20 rounded-lg shadow-xl z-50 max-h-80 overflow-y-auto">
+                                {sugestoesEspecialidades.length > 0 && (
+                                  <div className="p-3 border-b border-white/10">
+                                    <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Especialidades</p>
+                                    {sugestoesEspecialidades.map(especialidade => (
+                                      <button
+                                        key={especialidade}
+                                        type="button"
+                                        onClick={() => selecionarEspecialidade(especialidade)}
+                                        className="w-full text-left p-3 rounded hover:bg-white/10 transition-colors"
+                                      >
+                                        <div className="flex items-center gap-3">
+                                          <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                          </svg>
+                                          <span className="text-white font-medium">{especialidade}</span>
+                                        </div>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                                
+                                {sugestoesProfissionais.length > 0 && (
+                                  <div className="p-3">
+                                    <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Profissionais</p>
+                                    {sugestoesProfissionais.map(profissional => (
+                                      <button
+                                        key={profissional.id}
+                                        type="button"
+                                        onClick={() => selecionarProfissional(profissional)}
+                                        className="w-full text-left p-3 rounded hover:bg-white/10 transition-colors"
+                                      >
+                                        <div className="flex items-center gap-3">
+                                          <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-lg flex items-center justify-center">
+                                            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                            </svg>
+                                          </div>
+                                          <div>
+                                            <p className="text-white font-medium">{profissional.nome}</p>
+                                            <p className="text-gray-400 text-sm">{profissional.especialidade} • {profissional.cidade}</p>
+                                          </div>
+                                        </div>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Campo Cidade */}
+                          <div>
+                            <input 
+                              placeholder="Cidade" 
+                              value={cidadeBusca}
+                              onChange={(e) => setCidadeBusca(e.target.value)}
+                              className="w-full px-4 py-4 rounded-lg bg-white/10 border border-white/20 focus:outline-none focus:ring-2 focus:ring-blue-600 text-white placeholder:text-gray-400 text-lg" 
+                            />
+                          </div>
+
+                          {/* Botão Pesquisar */}
+                          <div>
+                            <button type="submit" className="h-[60px] px-8 rounded-lg font-semibold bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 text-white shadow hover:brightness-110 transition-all">
+                              <span className="flex items-center justify-center gap-2">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                                Pesquisar
+                              </span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Especialidades em Destaque */}
+                        <div className="pt-4 border-t border-white/10">
+                          <p className="text-sm text-gray-400 mb-3">Especialidades populares:</p>
+                          <div className="flex flex-wrap gap-2">
+                            {['Cardiologia', 'Dermatologia', 'Psiquiatria', 'Ortopedia', 'Ginecologia', 'Neurologia'].map(esp => (
+                              <button
+                                key={esp}
+                                type="button"
+                                onClick={() => selecionarEspecialidade(esp)}
+                                className="px-3 py-1.5 text-sm bg-white/10 hover:bg-white/20 border border-white/20 rounded-full text-gray-300 hover:text-white transition-colors"
+                              >
+                                {esp}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </form>
+                    )}
+
+                    {/* Calendário de Agendamento */}
+                    {mostrarCalendario && (
+                      <div className="space-y-6">
+                        {/* Header com informações da seleção */}
+                        <div className="bg-white/5 border border-white/10 rounded-xl p-6">
+                          <div className="flex items-center justify-between mb-4">
+                            <div>
+                              <h3 className="text-xl font-semibold text-white">
+                                {profissionalSelecionado ? profissionalSelecionado.nome : `Profissionais de ${especialidadeSelecionada}`}
+                              </h3>
+                              {profissionalSelecionado && (
+                                <p className="text-gray-300">{profissionalSelecionado.especialidade}</p>
+                              )}
+                            </div>
+                            <button
+                              onClick={resetarBusca}
+                              className="text-gray-400 hover:text-white underline text-sm"
+                            >
+                              Nova busca
+                            </button>
+                          </div>
+
+                          {/* Seleção de Profissional (se busca por especialidade) */}
+                          {especialidadeSelecionada && profissionaisDaEspecialidade.length > 0 && (
+                            <div className="mb-6">
+                              <label className="block text-sm font-medium text-gray-300 mb-3">Escolha o profissional:</label>
+                              <div className="grid gap-3">
+                                {profissionaisDaEspecialidade.map(prof => (
+                                  <button
+                                    key={prof.id}
+                                    onClick={() => selecionarProfissional(prof)}
+                                    className={`p-4 rounded-lg border transition-colors text-left ${
+                                      profissionalSelecionado?.id === prof.id
+                                        ? 'bg-blue-600/20 border-blue-500 text-white'
+                                        : 'bg-white/5 border-white/10 hover:bg-white/10 text-gray-300'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-lg flex items-center justify-center">
+                                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                        </svg>
+                                      </div>
+                                      <div>
+                                        <p className="font-medium">{prof.nome}</p>
+                                        <p className="text-sm opacity-75">{prof.cidade} • Avaliação: {prof.avaliacao} ⭐</p>
+                                      </div>
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Seleção de Clínica */}
+                          {profissionalSelecionado && (
+                            <div className="mb-6">
+                              <label className="block text-sm font-medium text-gray-300 mb-3">Escolha a clínica:</label>
+                              <div className="grid gap-3">
+                                {getClinicasDisponiveis().map(clinica => (
+                                  <button
+                                    key={clinica.id}
+                                    onClick={() => setClinicaSelecionada(clinica)}
+                                    className={`p-4 rounded-lg border transition-colors text-left ${
+                                      clinicaSelecionada?.id === clinica.id
+                                        ? 'bg-green-600/20 border-green-500 text-white'
+                                        : 'bg-white/5 border-white/10 hover:bg-white/10 text-gray-300'
+                                    }`}
+                                  >
+                                    <div>
+                                      <p className="font-medium text-white">{clinica.nome}</p>
+                                      <p className="text-sm text-gray-400 mt-1">📍 {clinica.endereco}</p>
+                                      <p className="text-sm text-gray-400">📞 {clinica.telefone}</p>
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Calendário Interativo */}
+                          {profissionalSelecionado && clinicaSelecionada && (
+                            <div className="space-y-6">
+                              {/* Header do Calendário */}
+                              <div className="flex items-center justify-between">
+                                <h4 className="text-lg font-semibold text-white">Selecione data e horário</h4>
+                                <div className="flex items-center gap-2">
+                                  <div className="flex bg-white/10 rounded-lg p-1">
+                                    <button
+                                      onClick={() => setTipoVisualizacao('semana')}
+                                      className={`px-3 py-1 rounded text-sm font-medium transition ${
+                                        tipoVisualizacao === 'semana'
+                                          ? 'bg-blue-600 text-white'
+                                          : 'text-gray-400 hover:text-white'
+                                      }`}
+                                    >
+                                      Semana
+                                    </button>
+                                  </div>
+                                  
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      onClick={() => navegarCalendario('anterior')}
+                                      className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+                                    >
+                                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                      </svg>
+                                    </button>
+                                    <button
+                                      onClick={() => navegarCalendario('proximo')}
+                                      className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+                                    >
+                                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                      </svg>
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Calendário Semanal */}
+                              {tipoVisualizacao === 'semana' && (
+                                <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                                  <div className="grid grid-cols-7 gap-2 mb-4">
+                                    {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((dia, index) => (
+                                      <div key={index} className="text-center py-2 text-sm font-medium text-gray-400">
+                                        {dia}
+                                      </div>
+                                    ))}
+                                  </div>
+                                  
+                                  <div className="grid grid-cols-7 gap-2">
+                                    {getWeekDays(dataAtual).map((data, index) => {
+                                      const hoje = new Date();
+                                      const isPast = data < hoje;
+                                      const isToday = data.toDateString() === hoje.toDateString();
+                                      const horariosDisponiveis = isPast ? [] : getHorariosPorDia(data);
+                                      
+                                      return (
+                                        <div key={index} className={`min-h-[200px] border border-white/10 rounded-lg p-2 ${
+                                          isPast ? 'bg-gray-700/30' : 'bg-white/5'
+                                        }`}>
+                                          <div className={`text-center py-1 mb-2 text-sm font-medium rounded ${
+                                            isToday ? 'bg-blue-600 text-white' : 
+                                            isPast ? 'text-gray-500' : 'text-gray-300'
+                                          }`}>
+                                            {data.getDate()}
+                                          </div>
+                                          
+                                          {!isPast && (
+                                            <div className="space-y-1">
+                                              {horariosDisponiveis.map((horario) => (
+                                                <button
+                                                  key={horario}
+                                                  onClick={() => selecionarHorario(data, horario)}
+                                                  className={`w-full text-xs py-1 px-1 rounded transition-colors ${
+                                                    dataSelecionada === data.toISOString().split('T')[0] && horarioSelecionado === horario
+                                                      ? 'bg-green-600 text-white font-medium'
+                                                      : 'bg-blue-600/70 hover:bg-blue-600 text-white'
+                                                  }`}
+                                                >
+                                                  {horario}
+                                                </button>
+                                              ))}
+                                            </div>
+                                          )}
+                                          
+                                          {isPast && (
+                                            <div className="text-center text-xs text-gray-500 mt-4">
+                                              Indisponível
+                                            </div>
+                                          )}
+                                          
+                                          {!isPast && horariosDisponiveis.length === 0 && (
+                                            <div className="text-center text-xs text-gray-400 mt-4">
+                                              Sem horários
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                  
+                                  {/* Legenda */}
+                                  <div className="mt-4 flex items-center justify-center gap-6 text-xs">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-3 h-3 bg-blue-600/70 rounded"></div>
+                                      <span className="text-gray-400">Disponível</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-3 h-3 bg-green-600 rounded"></div>
+                                      <span className="text-gray-400">Selecionado</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-3 h-3 bg-gray-700 rounded"></div>
+                                      <span className="text-gray-400">Indisponível</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Resumo da Seleção */}
+                              {dataSelecionada && horarioSelecionado && (
+                                <div className="bg-green-600/20 border border-green-500/30 rounded-lg p-4">
+                                  <div className="flex items-center gap-3">
+                                    <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <div>
+                                      <p className="font-medium text-white">Horário Selecionado</p>
+                                      <p className="text-green-100 text-sm">
+                                        {new Date(dataSelecionada).toLocaleDateString('pt-BR', { 
+                                          weekday: 'long', 
+                                          day: 'numeric', 
+                                          month: 'long', 
+                                          year: 'numeric' 
+                                        })} às {horarioSelecionado}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Botão de Confirmação */}
+                          {profissionalSelecionado && clinicaSelecionada && dataSelecionada && horarioSelecionado && (
+                            <div className="mt-6 pt-6 border-t border-white/10">
+                              <button
+                                onClick={confirmarAgendamento}
+                                className="w-full py-4 bg-gradient-to-r from-green-600 to-emerald-500 text-white rounded-lg font-semibold hover:brightness-110 transition-all text-lg"
+                              >
+                                Confirmar Agendamento
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
                 {audienceTab === 'clinicas' && (
                   <div className="grid gap-6 md:grid-cols-3">

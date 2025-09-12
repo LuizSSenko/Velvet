@@ -132,3 +132,45 @@ html, body { scroll-behavior: smooth; }
 .faq-item-content[data-open="false"] { grid-template-rows: 0fr; padding-top: 0; }
 .faq-item-content[data-open="true"] { grid-template-rows: 1fr; }
 
+/* Date input styling */
+input[type="date"] {
+  position: relative;
+  appearance: none;
+  -webkit-appearance: none;
+  color: inherit;
+  font-family: inherit;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  background: transparent;
+  bottom: 0;
+  color: transparent;
+  cursor: pointer;
+  height: auto;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: auto;
+}
+
+/* Custom date picker icon */
+input[type="date"]::after {
+  content: "📅";
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+input[type="date"]::-webkit-inner-spin-button,
+input[type="date"]::-webkit-clear-button {
+  display: none;
+}
+
+input[type="date"]::-moz-clear {
+  display: none;
+}
+
