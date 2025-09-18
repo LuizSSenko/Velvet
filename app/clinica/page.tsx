@@ -1,87 +1,146 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Professional, ProfessionalSchedule, ProfessionalBreak, Booking, CustomHour, ClinicHours, ClinicAddress, ClinicContacts, ClinicInfo } from '@/lib/types';
 
-// Placeholder types (futuro: mover para /lib/types)
-interface Professional { 
-  id: string; 
-  nome: string; 
-  especialidade: string; 
-  cor: string;
-  horarios: ProfessionalSchedule[];
-  telefone?: string;
-  email?: string;
-  ativo: boolean;
+// API functions
+async function fetchProfessionals(): Promise<Professional[]> {
+  try {
+    const response = await fetch('/api/professionals')
+    if (!response.ok) throw new Error('Failed to fetch professionals')
+    return await response.json()
+  } catch (error) {
+    console.error('Error fetching professionals:', error)
+    return []
+  }
 }
-interface ProfessionalSchedule {
-  id: string;
-  diaSemana: 'segunda' | 'terca' | 'quarta' | 'quinta' | 'sexta' | 'sabado' | 'domingo';
-  horaInicio: string;
-  horaFim: string;
+
+async function saveProfessionals(professionals: Professional[]): Promise<void> {
+  try {
+    const response = await fetch('/api/professionals', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(professionals)
+    })
+    if (!response.ok) throw new Error('Failed to save professionals')
+  } catch (error) {
+    console.error('Error saving professionals:', error)
+  }
 }
-interface Booking { id: string; paciente: string; profissionalId: string; inicio: string; fim: string; status: 'confirmado' | 'pendente' | 'cancelado' }
-interface CustomHour { id: string; type: 'weekday' | 'date'; target: string; start: string; end: string; closed: boolean }
 
-const profissionaisSeed: Professional[] = [
-  { 
-    id: 'p1', 
-    nome: 'Dra. Ana Silva', 
-    especialidade: 'Cardiologia', 
-    cor: '#3b82f6',
-    telefone: '(11) 99999-1234',
-    email: 'ana@clinica.com',
-    ativo: true,
-    horarios: [
-      { id: 'h1', diaSemana: 'segunda', horaInicio: '08:00', horaFim: '12:00' },
-      { id: 'h2', diaSemana: 'quarta', horaInicio: '14:00', horaFim: '18:00' },
-      { id: 'h3', diaSemana: 'sexta', horaInicio: '08:00', horaFim: '16:00' }
-    ]
-  },
-  { 
-    id: 'p2', 
-    nome: 'Dr. Bruno Costa', 
-    especialidade: 'Dermatologia', 
-    cor: '#6366f1',
-    telefone: '(11) 98888-5678',
-    email: 'bruno@clinica.com',
-    ativo: true,
-    horarios: [
-      { id: 'h4', diaSemana: 'terca', horaInicio: '09:00', horaFim: '17:00' },
-      { id: 'h5', diaSemana: 'quinta', horaInicio: '13:00', horaFim: '18:00' }
-    ]
-  },
-  { 
-    id: 'p3', 
-    nome: 'Dra. Carla Mendes', 
-    especialidade: 'Pediatria', 
-    cor: '#06b6d4',
-    telefone: '(11) 97777-9012',
-    email: 'carla@clinica.com',
-    ativo: true,
-    horarios: [
-      { id: 'h6', diaSemana: 'segunda', horaInicio: '14:00', horaFim: '18:00' },
-      { id: 'h7', diaSemana: 'terca', horaInicio: '08:00', horaFim: '12:00' },
-      { id: 'h8', diaSemana: 'quinta', horaInicio: '08:00', horaFim: '12:00' },
-      { id: 'h9', diaSemana: 'sabado', horaInicio: '08:00', horaFim: '14:00' }
-    ]
-  },
-];
+async function fetchClinicConfig() {
+  try {
+    const [hoursRes, addressRes, contactsRes, customHoursRes] = await Promise.all([
+      fetch('/api/clinic/hours'),
+      fetch('/api/clinic/address'), 
+      fetch('/api/clinic/contacts'),
+      fetch('/api/clinic/custom-hours')
+    ])
 
-const hoje = new Date();
-const yyyy = hoje.getFullYear();
-const mm = String(hoje.getMonth() + 1).padStart(2,'0');
-const dd = String(hoje.getDate()).padStart(2,'0');
-const baseDate = `${yyyy}-${mm}-${dd}`;
+    const [hours, address, contacts, customHours] = await Promise.all([
+      hoursRes.json(),
+      addressRes.json(),
+      contactsRes.json(), 
+      customHoursRes.json()
+    ])
 
-const bookingsSeed: Booking[] = [
-  { id: 'b1', paciente: 'João Silva', profissionalId: 'p1', inicio: `${baseDate}T09:00`, fim: `${baseDate}T09:30`, status: 'confirmado' },
-  { id: 'b2', paciente: 'Mariana Costa', profissionalId: 'p2', inicio: `${baseDate}T10:00`, fim: `${baseDate}T10:45`, status: 'pendente' },
-  { id: 'b3', paciente: 'Pedro Gomes', profissionalId: 'p1', inicio: `${baseDate}T11:15`, fim: `${baseDate}T11:45`, status: 'confirmado' },
-  { id: 'b4', paciente: 'Laura Dias', profissionalId: 'p3', inicio: `${baseDate}T14:00`, fim: `${baseDate}T14:30`, status: 'cancelado' },
-  { id: 'b5', paciente: 'Carlos Souza', profissionalId: 'p2', inicio: `${baseDate}T15:30`, fim: `${baseDate}T16:15`, status: 'confirmado' },
-  // Exemplo de agendamentos no mesmo horário para médicos diferentes
-  { id: 'b6', paciente: 'Ana Oliveira', profissionalId: 'p1', inicio: `${baseDate}T14:00`, fim: `${baseDate}T14:30`, status: 'confirmado' },
-  { id: 'b7', paciente: 'Roberto Lima', profissionalId: 'p2', inicio: `${baseDate}T14:00`, fim: `${baseDate}T14:30`, status: 'pendente' },
-];
+    return { hours, address, contacts, customHours }
+  } catch (error) {
+    console.error('Error fetching clinic config:', error)
+    return {
+      hours: { start: '07:00', end: '19:00', saturday: true, sunday: false },
+      address: { rua: '', numero: '', complemento: '', bairro: '', cidade: '', estado: '', cep: '' },
+      contacts: { telefone: '', email: '', whatsapp: '', site: '' },
+      customHours: []
+    }
+  }
+}
+
+async function fetchBookings(): Promise<Booking[]> {
+  try {
+    const response = await fetch('/api/bookings')
+    if (!response.ok) throw new Error('Failed to fetch bookings')
+    return await response.json()
+  } catch (error) {
+    console.error('Error fetching bookings:', error)
+    return []
+  }
+}
+
+async function saveClinicHours(hours: ClinicHours): Promise<void> {
+  try {
+    const response = await fetch('/api/clinic/hours', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(hours)
+    })
+    if (!response.ok) throw new Error('Failed to save clinic hours')
+  } catch (error) {
+    console.error('Error saving clinic hours:', error)
+  }
+}
+
+async function saveClinicInfo(info: ClinicInfo): Promise<void> {
+  try {
+    const response = await fetch('/api/clinic/info', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(info)
+    })
+    if (!response.ok) throw new Error('Failed to save clinic info')
+  } catch (error) {
+    console.error('Error saving clinic info:', error)
+  }
+}
+
+async function loadClinicInfo(): Promise<ClinicInfo | null> {
+  try {
+    const response = await fetch('/api/clinic/info')
+    if (!response.ok) throw new Error('Failed to load clinic info')
+    return await response.json()
+  } catch (error) {
+    console.error('Error loading clinic info:', error)
+    return null
+  }
+}
+
+async function saveClinicAddress(address: ClinicAddress): Promise<void> {
+  try {
+    const response = await fetch('/api/clinic/address', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(address)
+    })
+    if (!response.ok) throw new Error('Failed to save clinic address')
+  } catch (error) {
+    console.error('Error saving clinic address:', error)
+  }
+}
+
+async function saveClinicContacts(contacts: ClinicContacts): Promise<void> {
+  try {
+    const response = await fetch('/api/clinic/contacts', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(contacts)
+    })
+    if (!response.ok) throw new Error('Failed to save clinic contacts')
+  } catch (error) {
+    console.error('Error saving clinic contacts:', error)
+  }
+}
+
+async function saveCustomHours(customHours: CustomHour[]): Promise<void> {
+  try {
+    const response = await fetch('/api/clinic/custom-hours', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(customHours)
+    })
+    if (!response.ok) throw new Error('Failed to save custom hours')
+  } catch (error) {
+    console.error('Error saving custom hours:', error)
+  }
+}
 
 // Utilitários simples
 function formatHour(dateStr: string) { return dateStr.split('T')[1].slice(0,5); }
@@ -132,11 +191,16 @@ function getMonthDays(base: Date) {
 
 export default function ClinicaPage() {
   const [tab, setTab] = useState<'agenda' | 'dashboard' | 'config' | 'helpdesk'>('agenda');
-  const [profissionais, setProfissionais] = useState<Professional[]>(profissionaisSeed);
-  const [bookings] = useState<Booking[]>(bookingsSeed);
+  const [profissionais, setProfissionais] = useState<Professional[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]); // Integração com API de bookings
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
-  const [weeklyHours, setWeeklyHours] = useState({ start: '07:00', end: '19:00', saturday: true, sunday: false });
+  const [weeklyHours, setWeeklyHours] = useState<ClinicHours>({ start: '07:00', end: '19:00', saturday: true, sunday: false });
+  const [clinicInfo, setClinicInfo] = useState<ClinicInfo>({ 
+    nome: 'Clínica Médica Central',
+    telefone: '(11) 3333-4444',
+    email: 'contato@clinicacentral.com.br'
+  });
   const [customHours, setCustomHours] = useState<CustomHour[]>([]);
   const [customForm, setCustomForm] = useState({ type: 'weekday', target: 'Segunda', start: '09:00', end: '17:00', closed: false });
   const [filterStatus, setFilterStatus] = useState<'all' | 'confirmado' | 'pendente' | 'cancelado'>('all');
@@ -146,6 +210,281 @@ export default function ClinicaPage() {
   const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
   const [clickedDate, setClickedDate] = useState<Date | null>(null);
   const [lastClickTime, setLastClickTime] = useState<number>(0);
+  const [loading, setLoading] = useState(true);
+
+  // Estados para o formulário de profissional
+  const [professionalForm, setProfessionalForm] = useState({
+    nome: '',
+    especialidade: '',
+    cor: '#3b82f6',
+    telefone: '',
+    email: '',
+    duracaoConsulta: 30, // padrão 30 minutos
+    horarios: [] as ProfessionalSchedule[],
+    horariosAlmoco: [] as ProfessionalBreak[]
+  });
+
+  // Estado para horário sendo editado
+  const [editingSchedule, setEditingSchedule] = useState<ProfessionalSchedule | null>(null);
+  const [scheduleForm, setScheduleForm] = useState({
+    diaSemana: 'segunda' as const,
+    horaInicio: '08:00',
+    horaFim: '17:00'
+  });
+
+  // Estado para horários bloqueados (almoço)
+  const [newBlockedHour, setNewBlockedHour] = useState<{inicio: string; fim: string}>({
+    inicio: '12:00',
+    fim: '13:00'
+  });
+
+  // Estados para endereço da clínica
+  const [clinicAddress, setClinicAddress] = useState<ClinicAddress>({
+    rua: '',
+    numero: '',
+    complemento: '',
+    bairro: '',
+    cidade: '',
+    estado: '',
+    cep: ''
+  });
+
+  // Estados para contatos da clínica
+  const [clinicContacts, setClinicContacts] = useState<ClinicContacts>({
+    telefone: '',
+    email: '',
+    whatsapp: '',
+    site: ''
+  });
+
+  // Load data from API on component mount
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true)
+      try {
+        const [professionalsData, clinicData, clinicInfoData, bookingsData] = await Promise.all([
+          fetchProfessionals(),
+          fetchClinicConfig(),
+          loadClinicInfo(),
+          fetchBookings()
+        ])
+
+        setProfissionais(professionalsData)
+        setWeeklyHours(clinicData.hours)
+        setClinicAddress(clinicData.address)
+        setClinicContacts(clinicData.contacts)
+        setCustomHours(clinicData.customHours)
+        setBookings(bookingsData)
+        
+        if (clinicInfoData) {
+          setClinicInfo(clinicInfoData)
+        }
+      } catch (error) {
+        console.error('Error loading data:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadData()
+  }, [])
+
+  // Recarregar bookings periodicamente para mostrar novos agendamentos
+  useEffect(() => {
+    const interval = setInterval(reloadBookings, 30000) // Recarrega a cada 30 segundos
+    return () => clearInterval(interval)
+  }, [])
+
+  // Save functions
+  const handleSaveProfessionals = async () => {
+    await saveProfessionals(profissionais)
+  }
+
+  const handleSaveClinicHours = async () => {
+    await saveClinicHours(weeklyHours)
+  }
+
+  const handleSaveClinicInfo = async () => {
+    try {
+      await saveClinicInfo(clinicInfo)
+      // Could add a toast notification here in the future
+      console.log('Informações da clínica salvas com sucesso!')
+    } catch (error) {
+      console.error('Erro ao salvar informações da clínica:', error)
+    }
+  }
+
+  const handleSaveClinicAddress = async () => {
+    await saveClinicAddress(clinicAddress)
+  }
+
+  const handleSaveClinicContacts = async () => {
+    await saveClinicContacts(clinicContacts)
+  }
+
+  const handleSaveCustomHours = async () => {
+    await saveCustomHours(customHours)
+  }
+
+  // Função para recarregar bookings
+  const reloadBookings = async () => {
+    try {
+      const bookingsData = await fetchBookings()
+      setBookings(bookingsData)
+    } catch (error) {
+      console.error('Error reloading bookings:', error)
+    }
+  }
+
+  // Funções para gerenciar profissionais
+  const handleOpenProfessionalForm = (professional?: Professional) => {
+    if (professional) {
+      // Editando profissional existente
+      setSelectedProfessional(professional);
+      setProfessionalForm({
+        nome: professional.nome,
+        especialidade: professional.especialidade,
+        cor: professional.cor,
+        telefone: professional.telefone || '',
+        email: professional.email || '',
+        duracaoConsulta: professional.duracaoConsulta || 30,
+        horarios: professional.horarios,
+        horariosAlmoco: professional.horariosAlmoco || []
+      });
+    } else {
+      // Novo profissional
+      setSelectedProfessional(null);
+      setProfessionalForm({
+        nome: '',
+        especialidade: '',
+        cor: '#3b82f6',
+        telefone: '',
+        email: '',
+        duracaoConsulta: 30,
+        horarios: [],
+        horariosAlmoco: []
+      });
+    }
+    setEditingProfessional(true);
+  };
+
+  const handleCloseProfessionalForm = () => {
+    setEditingProfessional(false);
+    setSelectedProfessional(null);
+    setEditingSchedule(null);
+    setProfessionalForm({
+      nome: '',
+      especialidade: '',
+      cor: '#3b82f6',
+      telefone: '',
+      email: '',
+      duracaoConsulta: 30,
+      horarios: [],
+      horariosAlmoco: []
+    });
+  };
+
+  const handleSaveProfessional = async () => {
+    try {
+      if (selectedProfessional) {
+        // Atualizando profissional existente
+        const updatedProfessionals = profissionais.map(prof => 
+          prof.id === selectedProfessional.id 
+            ? { ...selectedProfessional, ...professionalForm }
+            : prof
+        );
+        setProfissionais(updatedProfessionals);
+        await saveProfessionals(updatedProfessionals);
+      } else {
+        // Criando novo profissional
+        const newProfessional: Professional = {
+          id: crypto.randomUUID(),
+          ...professionalForm,
+          ativo: true
+        };
+        
+        const response = await fetch('/api/professionals', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newProfessional)
+        });
+        
+        if (response.ok) {
+          const createdProfessional = await response.json();
+          setProfissionais(prev => [...prev, createdProfessional]);
+        }
+      }
+      handleCloseProfessionalForm();
+    } catch (error) {
+      console.error('Error saving professional:', error);
+    }
+  };
+
+  const handleAddSchedule = () => {
+    const newSchedule: ProfessionalSchedule = {
+      id: crypto.randomUUID(),
+      ...scheduleForm
+    };
+    setProfessionalForm(prev => ({
+      ...prev,
+      horarios: [...prev.horarios, newSchedule]
+    }));
+    setScheduleForm({
+      diaSemana: 'segunda',
+      horaInicio: '08:00',
+      horaFim: '17:00'
+    });
+  };
+
+  const handleRemoveSchedule = (scheduleId: string) => {
+    setProfessionalForm(prev => ({
+      ...prev,
+      horarios: prev.horarios.filter(h => h.id !== scheduleId)
+    }));
+  };
+
+  // Funções para gerenciar horários bloqueados
+  const handleAddBlockedHour = () => {
+    if (newBlockedHour.inicio && newBlockedHour.fim) {
+      const diasUteis: Array<'segunda' | 'terca' | 'quarta' | 'quinta' | 'sexta' | 'sabado' | 'domingo'> = 
+        ['segunda', 'terca', 'quarta', 'quinta', 'sexta'];
+      
+      const novosHorariosAlmoco: ProfessionalBreak[] = diasUteis.map(dia => ({
+        id: `almoco-${dia}-${Date.now()}`,
+        diaSemana: dia,
+        horaInicio: newBlockedHour.inicio,
+        horaFim: newBlockedHour.fim,
+        descricao: 'Almoço'
+      }));
+      
+      setProfessionalForm(prev => ({
+        ...prev,
+        horariosAlmoco: [...prev.horariosAlmoco, ...novosHorariosAlmoco]
+      }));
+      
+      // Reset do formulário
+      setNewBlockedHour({
+        inicio: '12:00',
+        fim: '13:00'
+      });
+    }
+  };
+
+  const handleRemoveBlockedHour = (index: number) => {
+    setProfessionalForm(prev => ({
+      ...prev,
+      horariosAlmoco: prev.horariosAlmoco.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleRemoveBlockedHourGroup = (horaInicio: string, horaFim: string) => {
+    setProfessionalForm(prev => ({
+      ...prev,
+      horariosAlmoco: prev.horariosAlmoco.filter(h => 
+        !(h.horaInicio === horaInicio && h.horaFim === horaFim)
+      )
+    }));
+  };
 
   const weekDays = getWeekDays(selectedDate);
   const monthDays = getMonthDays(selectedDate);
@@ -198,6 +537,15 @@ export default function ClinicaPage() {
 
   return (
     <div className="flex flex-col flex-1 bg-gradient-to-br from-[#0a1220] via-[#0e1822] to-[#1a2332]">
+      {loading ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-gray-400">Carregando dados da clínica...</p>
+          </div>
+        </div>
+      ) : (
+        <>
       {/* Header melhorado com breadcrumb e stats */}
       <div className="relative bg-[#0b141d]/95 backdrop-blur-sm border-b border-white/10 sticky top-0 z-30">
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 via-transparent to-cyan-500/10"></div>
@@ -939,7 +1287,7 @@ export default function ClinicaPage() {
                   <p className="text-sm text-gray-400">Gerencie os profissionais que utilizam as salas da clínica e seus horários de disponibilidade</p>
                 </div>
                 <button 
-                  onClick={() => {setSelectedProfessional(null); setEditingProfessional(true);}}
+                  onClick={() => handleOpenProfessionalForm()}
                   className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-lg font-semibold hover:brightness-110 transition-all"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -966,7 +1314,7 @@ export default function ClinicaPage() {
                             {prof.ativo ? 'Ativo' : 'Inativo'}
                           </span>
                           <button 
-                            onClick={() => {setSelectedProfessional(prof); setEditingProfessional(true);}}
+                            onClick={() => handleOpenProfessionalForm(prof)}
                             className="text-gray-400 hover:text-white transition-colors"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1007,9 +1355,59 @@ export default function ClinicaPage() {
             <section className="space-y-6">
               <div>
                 <h3 className="text-lg font-semibold text-white mb-2">Configurações da Clínica</h3>
-                <p className="text-sm text-gray-400">Defina o horário geral de funcionamento da clínica</p>
+                <p className="text-sm text-gray-400">Configure as informações gerais e horário de funcionamento da clínica</p>
               </div>
 
+              {/* Informações da Clínica */}
+              <div className="bg-white/5 border border-white/10 rounded-xl p-6">
+                <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-4">Informações da Clínica</h4>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs uppercase tracking-wide text-gray-400 font-semibold mb-2">Nome da Clínica</label>
+                    <input 
+                      type="text" 
+                      value={clinicInfo.nome} 
+                      onChange={e => setClinicInfo(prev => ({...prev, nome: e.target.value}))}
+                      placeholder="Ex: Clínica Médica Central"
+                      className="w-full bg-[#0e1822] border border-white/20 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500" 
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs uppercase tracking-wide text-gray-400 font-semibold mb-2">Telefone Principal</label>
+                    <input 
+                      type="tel" 
+                      value={clinicInfo.telefone} 
+                      onChange={e => setClinicInfo(prev => ({...prev, telefone: e.target.value}))}
+                      placeholder="(11) 3333-4444"
+                      className="w-full bg-[#0e1822] border border-white/20 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500" 
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-xs uppercase tracking-wide text-gray-400 font-semibold mb-2">E-mail da Clínica</label>
+                    <input 
+                      type="email" 
+                      value={clinicInfo.email} 
+                      onChange={e => setClinicInfo(prev => ({...prev, email: e.target.value}))}
+                      placeholder="contato@clinica.com.br"
+                      className="w-full bg-[#0e1822] border border-white/20 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500" 
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleSaveClinicInfo}
+                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+                  >
+                    Salvar Informações
+                  </button>
+                </div>
+              </div>
+
+              {/* Horário de Funcionamento */}
               <div className="bg-white/5 border border-white/10 rounded-xl p-6">
                 <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-4">Horário de Funcionamento</h4>
                 
@@ -1056,7 +1454,10 @@ export default function ClinicaPage() {
                     </label>
                   </div>
 
-                  <button className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold hover:brightness-110 transition-all">
+                  <button 
+                    onClick={handleSaveClinicHours}
+                    className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold hover:brightness-110 transition-all"
+                  >
                     Salvar Configurações
                   </button>
                 </div>
@@ -1088,7 +1489,11 @@ export default function ClinicaPage() {
                           )}
                         </div>
                         <button
-                          onClick={()=> setCustomHours(list => list.filter(h => h.id !== item.id))}
+                          onClick={async () => {
+                            const updatedCustomHours = customHours.filter(h => h.id !== item.id);
+                            setCustomHours(updatedCustomHours);
+                            await saveCustomHours(updatedCustomHours);
+                          }}
                           className="px-3 py-2 rounded-lg bg-red-600/20 text-red-300 hover:bg-red-600/30 transition-colors text-sm font-medium"
                         >
                           Remover
@@ -1099,7 +1504,20 @@ export default function ClinicaPage() {
                 )}
 
                 <form
-                  onSubmit={e=> {e.preventDefault(); setCustomHours(list => [...list, { id: crypto.randomUUID?.() || Math.random().toString(36).slice(2), type: customForm.type as 'weekday'|'date', target: customForm.target, start: customForm.start, end: customForm.end, closed: customForm.closed }]); }}
+                  onSubmit={async e => {
+                    e.preventDefault(); 
+                    const newCustomHour = { 
+                      id: crypto.randomUUID?.() || Math.random().toString(36).slice(2), 
+                      type: customForm.type as 'weekday'|'date', 
+                      target: customForm.target, 
+                      start: customForm.start, 
+                      end: customForm.end, 
+                      closed: customForm.closed 
+                    };
+                    const updatedCustomHours = [...customHours, newCustomHour];
+                    setCustomHours(updatedCustomHours);
+                    await saveCustomHours(updatedCustomHours);
+                  }}
                   className="mt-6 grid md:grid-cols-5 gap-4 text-sm items-end bg-white/5 border border-white/10 rounded-lg p-4"
                 >
                   <div className="flex flex-col gap-2">
@@ -1141,6 +1559,211 @@ export default function ClinicaPage() {
                     </button>
                   </div>
                 </form>
+              </div>
+
+              {/* Seção 3: Endereço da Clínica */}
+              <div className="bg-white/5 border border-white/10 rounded-xl p-6">
+                <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-4">Endereço da Clínica</h4>
+                
+                <div className="space-y-4">
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <div className="md:col-span-2">
+                      <label className="block text-xs uppercase tracking-wide text-gray-400 font-semibold mb-2">Rua/Avenida</label>
+                      <input 
+                        type="text" 
+                        value={clinicAddress.rua} 
+                        onChange={e => setClinicAddress(prev => ({...prev, rua: e.target.value}))}
+                        placeholder="Ex: Rua das Flores"
+                        className="w-full bg-[#0e1822] border border-white/20 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs uppercase tracking-wide text-gray-400 font-semibold mb-2">Número</label>
+                      <input 
+                        type="text" 
+                        value={clinicAddress.numero} 
+                        onChange={e => setClinicAddress(prev => ({...prev, numero: e.target.value}))}
+                        placeholder="123"
+                        className="w-full bg-[#0e1822] border border-white/20 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500" 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs uppercase tracking-wide text-gray-400 font-semibold mb-2">Complemento</label>
+                      <input 
+                        type="text" 
+                        value={clinicAddress.complemento} 
+                        onChange={e => setClinicAddress(prev => ({...prev, complemento: e.target.value}))}
+                        placeholder="Sala 101, Andar 2º"
+                        className="w-full bg-[#0e1822] border border-white/20 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs uppercase tracking-wide text-gray-400 font-semibold mb-2">Bairro</label>
+                      <input 
+                        type="text" 
+                        value={clinicAddress.bairro} 
+                        onChange={e => setClinicAddress(prev => ({...prev, bairro: e.target.value}))}
+                        placeholder="Centro"
+                        className="w-full bg-[#0e1822] border border-white/20 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500" 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs uppercase tracking-wide text-gray-400 font-semibold mb-2">Cidade</label>
+                      <input 
+                        type="text" 
+                        value={clinicAddress.cidade} 
+                        onChange={e => setClinicAddress(prev => ({...prev, cidade: e.target.value}))}
+                        placeholder="São Paulo"
+                        className="w-full bg-[#0e1822] border border-white/20 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs uppercase tracking-wide text-gray-400 font-semibold mb-2">Estado</label>
+                      <select 
+                        value={clinicAddress.estado} 
+                        onChange={e => setClinicAddress(prev => ({...prev, estado: e.target.value}))}
+                        className="w-full bg-[#0e1822] border border-white/20 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Selecione</option>
+                        <option value="AC">Acre</option>
+                        <option value="AL">Alagoas</option>
+                        <option value="AP">Amapá</option>
+                        <option value="AM">Amazonas</option>
+                        <option value="BA">Bahia</option>
+                        <option value="CE">Ceará</option>
+                        <option value="DF">Distrito Federal</option>
+                        <option value="ES">Espírito Santo</option>
+                        <option value="GO">Goiás</option>
+                        <option value="MA">Maranhão</option>
+                        <option value="MT">Mato Grosso</option>
+                        <option value="MS">Mato Grosso do Sul</option>
+                        <option value="MG">Minas Gerais</option>
+                        <option value="PA">Pará</option>
+                        <option value="PB">Paraíba</option>
+                        <option value="PR">Paraná</option>
+                        <option value="PE">Pernambuco</option>
+                        <option value="PI">Piauí</option>
+                        <option value="RJ">Rio de Janeiro</option>
+                        <option value="RN">Rio Grande do Norte</option>
+                        <option value="RS">Rio Grande do Sul</option>
+                        <option value="RO">Rondônia</option>
+                        <option value="RR">Roraima</option>
+                        <option value="SC">Santa Catarina</option>
+                        <option value="SP">São Paulo</option>
+                        <option value="SE">Sergipe</option>
+                        <option value="TO">Tocantins</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs uppercase tracking-wide text-gray-400 font-semibold mb-2">CEP</label>
+                      <input 
+                        type="text" 
+                        value={clinicAddress.cep} 
+                        onChange={e => setClinicAddress(prev => ({...prev, cep: e.target.value}))}
+                        placeholder="01234-567"
+                        className="w-full bg-[#0e1822] border border-white/20 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500" 
+                      />
+                    </div>
+                  </div>
+
+                  <button 
+                    onClick={handleSaveClinicAddress}
+                    className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-green-600 to-emerald-500 text-white font-semibold hover:brightness-110 transition-all"
+                  >
+                    Salvar Endereço
+                  </button>
+                </div>
+              </div>
+
+              {/* Seção 4: Contatos da Clínica */}
+              <div className="bg-white/5 border border-white/10 rounded-xl p-6">
+                <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-4">Contatos da Clínica</h4>
+                
+                <div className="space-y-4">
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs uppercase tracking-wide text-gray-400 font-semibold mb-2">
+                        <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                        </svg>
+                        Telefone Principal
+                      </label>
+                      <input 
+                        type="tel" 
+                        value={clinicContacts.telefone} 
+                        onChange={e => setClinicContacts(prev => ({...prev, telefone: e.target.value}))}
+                        placeholder="(11) 3456-7890"
+                        className="w-full bg-[#0e1822] border border-white/20 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs uppercase tracking-wide text-gray-400 font-semibold mb-2">
+                        <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        E-mail
+                      </label>
+                      <input 
+                        type="email" 
+                        value={clinicContacts.email} 
+                        onChange={e => setClinicContacts(prev => ({...prev, email: e.target.value}))}
+                        placeholder="contato@clinica.com"
+                        className="w-full bg-[#0e1822] border border-white/20 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500" 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs uppercase tracking-wide text-gray-400 font-semibold mb-2">
+                        <svg className="w-4 h-4 inline mr-1" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.885 3.488"/>
+                        </svg>
+                        WhatsApp
+                      </label>
+                      <input 
+                        type="tel" 
+                        value={clinicContacts.whatsapp} 
+                        onChange={e => setClinicContacts(prev => ({...prev, whatsapp: e.target.value}))}
+                        placeholder="(11) 99999-8888"
+                        className="w-full bg-[#0e1822] border border-white/20 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs uppercase tracking-wide text-gray-400 font-semibold mb-2">
+                        <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9m0 9c-5 0-9-4-9-9s4-9 9-9" />
+                        </svg>
+                        Site/URL
+                      </label>
+                      <input 
+                        type="url" 
+                        value={clinicContacts.site} 
+                        onChange={e => setClinicContacts(prev => ({...prev, site: e.target.value}))}
+                        placeholder="https://www.clinica.com"
+                        className="w-full bg-[#0e1822] border border-white/20 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500" 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3">
+                    <button 
+                      onClick={handleSaveClinicContacts}
+                      className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold hover:brightness-110 transition-all"
+                    >
+                      Salvar Contatos
+                    </button>
+                    <button className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-gray-600 to-gray-700 text-white font-semibold hover:brightness-110 transition-all">
+                      Testar WhatsApp
+                    </button>
+                  </div>
+                </div>
               </div>
             </section>
           </div>
@@ -1235,6 +1858,239 @@ export default function ClinicaPage() {
               </div>
             </div>
           </section>
+        </div>
+      )}
+        </>
+      )}
+
+      {/* Modal para Edição/Criação de Profissional */}
+      {editingProfessional && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#1a2332] border border-white/20 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-auto">
+            <div className="p-6 border-b border-white/10">
+              <h3 className="text-xl font-semibold text-white">
+                {selectedProfessional ? 'Editar Profissional' : 'Novo Profissional'}
+              </h3>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {/* Informações Básicas */}
+              <div className="space-y-4">
+                <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Informações Básicas</h4>
+                
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs uppercase tracking-wide text-gray-400 font-semibold mb-2">Nome Completo</label>
+                    <input 
+                      type="text" 
+                      value={professionalForm.nome} 
+                      onChange={e => setProfessionalForm(prev => ({...prev, nome: e.target.value}))}
+                      placeholder="Dr. João Silva"
+                      className="w-full bg-[#0e1822] border border-white/20 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase tracking-wide text-gray-400 font-semibold mb-2">Especialidade</label>
+                    <input 
+                      type="text" 
+                      value={professionalForm.especialidade} 
+                      onChange={e => setProfessionalForm(prev => ({...prev, especialidade: e.target.value}))}
+                      placeholder="Cardiologia"
+                      className="w-full bg-[#0e1822] border border-white/20 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500" 
+                    />
+                  </div>
+                </div>
+
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs uppercase tracking-wide text-gray-400 font-semibold mb-2">Cor de Identificação</label>
+                    <input 
+                      type="color" 
+                      value={professionalForm.cor} 
+                      onChange={e => setProfessionalForm(prev => ({...prev, cor: e.target.value}))}
+                      className="w-full h-10 bg-[#0e1822] border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase tracking-wide text-gray-400 font-semibold mb-2">Telefone</label>
+                    <input 
+                      type="tel" 
+                      value={professionalForm.telefone} 
+                      onChange={e => setProfessionalForm(prev => ({...prev, telefone: e.target.value}))}
+                      placeholder="(11) 99999-9999"
+                      className="w-full bg-[#0e1822] border border-white/20 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase tracking-wide text-gray-400 font-semibold mb-2">E-mail</label>
+                    <input 
+                      type="email" 
+                      value={professionalForm.email} 
+                      onChange={e => setProfessionalForm(prev => ({...prev, email: e.target.value}))}
+                      placeholder="joao@clinica.com"
+                      className="w-full bg-[#0e1822] border border-white/20 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500" 
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Configurações de Consulta */}
+              <div className="space-y-4">
+                <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Configurações de Consulta</h4>
+                
+                <div>
+                  <label className="block text-xs uppercase tracking-wide text-gray-400 font-semibold mb-2">Duração Média da Consulta</label>
+                  <select 
+                    value={professionalForm.duracaoConsulta} 
+                    onChange={e => setProfessionalForm(prev => ({...prev, duracaoConsulta: parseInt(e.target.value)}))}
+                    className="w-full bg-[#0e1822] border border-white/20 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value={30}>30 minutos</option>
+                    <option value={45}>45 minutos</option>
+                    <option value={60}>1 hora</option>
+                    <option value={90}>1 hora e 30 minutos</option>
+                    <option value={120}>2 horas</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs uppercase tracking-wide text-gray-400 font-semibold mb-2">Horários Bloqueados (Almoço)</label>
+                  <div className="flex gap-2">
+                    <input 
+                      type="time" 
+                      value={newBlockedHour.inicio || '12:00'} 
+                      onChange={e => setNewBlockedHour(prev => ({...prev, inicio: e.target.value}))}
+                      className="flex-1 bg-[#0e1822] border border-white/20 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                    />
+                    <input 
+                      type="time" 
+                      value={newBlockedHour.fim || '13:00'} 
+                      onChange={e => setNewBlockedHour(prev => ({...prev, fim: e.target.value}))}
+                      className="flex-1 bg-[#0e1822] border border-white/20 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                    />
+                    <button
+                      onClick={handleAddBlockedHour}
+                      className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
+                    >
+                      Adicionar
+                    </button>
+                  </div>
+                </div>
+
+                {/* Lista de horários bloqueados */}
+                {professionalForm.horariosAlmoco.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-gray-400">Horários Bloqueados:</p>
+                    {Array.from(new Map(professionalForm.horariosAlmoco.map(h => 
+                      [`${h.horaInicio}-${h.horaFim}`, h]
+                    )).values()).map((horario, index) => (
+                      <div key={index} className="flex items-center justify-between p-3 bg-white/5 border border-white/10 rounded-lg">
+                        <span className="text-sm text-white">
+                          das {horario.horaInicio} às {horario.horaFim} (todos os dias úteis)
+                        </span>
+                        <button
+                          onClick={() => handleRemoveBlockedHourGroup(horario.horaInicio, horario.horaFim)}
+                          className="px-3 py-1.5 bg-red-600/20 text-red-300 rounded-lg hover:bg-red-600/30 transition-colors text-sm"
+                        >
+                          Remover
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Horários de Atendimento */}
+              <div className="space-y-4">
+                <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Horários de Atendimento</h4>
+                
+                {professionalForm.horarios.length > 0 ? (
+                  <div className="space-y-2">
+                    {professionalForm.horarios.map(horario => (
+                      <div key={horario.id} className="flex items-center justify-between p-3 bg-white/5 border border-white/10 rounded-lg">
+                        <div className="flex items-center gap-4 text-sm text-white">
+                          <span className="font-medium">{formatDiaSemana(horario.diaSemana)}</span>
+                          <span className="text-gray-400">das</span>
+                          <span>{horario.horaInicio}</span>
+                          <span className="text-gray-400">às</span>
+                          <span>{horario.horaFim}</span>
+                        </div>
+                        <button
+                          onClick={() => handleRemoveSchedule(horario.id)}
+                          className="px-3 py-1.5 bg-red-600/20 text-red-300 rounded-lg hover:bg-red-600/30 transition-colors text-sm"
+                        >
+                          Remover
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-400 text-sm italic">Nenhum horário cadastrado</p>
+                )}
+
+                {/* Formulário para adicionar horário */}
+                <div className="flex flex-wrap gap-3 items-end p-4 bg-white/5 border border-white/10 rounded-lg">
+                  <div className="flex-1 min-w-32">
+                    <label className="block text-xs uppercase tracking-wide text-gray-400 font-semibold mb-2">Dia da Semana</label>
+                    <select 
+                      value={scheduleForm.diaSemana} 
+                      onChange={e => setScheduleForm(prev => ({...prev, diaSemana: e.target.value as any}))}
+                      className="w-full bg-[#0e1822] border border-white/20 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="segunda">Segunda-feira</option>
+                      <option value="terca">Terça-feira</option>
+                      <option value="quarta">Quarta-feira</option>
+                      <option value="quinta">Quinta-feira</option>
+                      <option value="sexta">Sexta-feira</option>
+                      <option value="sabado">Sábado</option>
+                      <option value="domingo">Domingo</option>
+                    </select>
+                  </div>
+                  <div className="flex-1 min-w-24">
+                    <label className="block text-xs uppercase tracking-wide text-gray-400 font-semibold mb-2">Início</label>
+                    <input 
+                      type="time" 
+                      value={scheduleForm.horaInicio} 
+                      onChange={e => setScheduleForm(prev => ({...prev, horaInicio: e.target.value}))}
+                      className="w-full bg-[#0e1822] border border-white/20 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                    />
+                  </div>
+                  <div className="flex-1 min-w-24">
+                    <label className="block text-xs uppercase tracking-wide text-gray-400 font-semibold mb-2">Fim</label>
+                    <input 
+                      type="time" 
+                      value={scheduleForm.horaFim} 
+                      onChange={e => setScheduleForm(prev => ({...prev, horaFim: e.target.value}))}
+                      className="w-full bg-[#0e1822] border border-white/20 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                    />
+                  </div>
+                  <button
+                    onClick={handleAddSchedule}
+                    className="px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-500 text-white rounded-lg font-medium hover:brightness-110 transition-all"
+                  >
+                    Adicionar
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Botões de Ação */}
+            <div className="p-6 border-t border-white/10 flex gap-3 justify-end">
+              <button
+                onClick={handleCloseProfessionalForm}
+                className="px-6 py-2.5 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveProfessional}
+                disabled={!professionalForm.nome || !professionalForm.especialidade}
+                className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-lg font-medium hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {selectedProfessional ? 'Atualizar' : 'Criar'} Profissional
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

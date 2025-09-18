@@ -26,16 +26,20 @@ interface ProfissionalPublico {
   id: string;
   nome: string;
   especialidade: string;
-  clinicaIds: string[]; // Mudança: agora é um array de IDs
+  cor?: string;
+  telefone?: string;
+  email?: string;
+  horarios?: any;
+  clinicaIds?: string[]; // Mudança: agora é um array de IDs
   foto?: string;
   cidade: string;
   distancia?: number; // em km
   avaliacao: number;
   numeroAvaliacoes: number;
-  disponibilidade: {
+  disponibilidade?: {
     [key: string]: string[]; // dia da semana: array de horários
   };
-  proximasConsultas: string[]; // próximas datas disponíveis
+  proximasConsultas?: string[]; // próximas datas disponíveis
 }
 
 interface ClientePerfil {
@@ -173,122 +177,6 @@ const clinicasDisponiveis: Clinica[] = [
   }
 ];
 
-const profissionaisDisponiveis: ProfissionalPublico[] = [
-  {
-    id: 'p1',
-    nome: 'Dra. Ana Silva',
-    especialidade: 'Cardiologia',
-    clinicaIds: ['cl1', 'cl2'], // Trabalha em 2 clínicas
-    cidade: 'São Paulo',
-    distancia: 2.5,
-    avaliacao: 4.8,
-    numeroAvaliacoes: 156,
-    disponibilidade: {
-      'segunda': ['08:00', '09:00', '10:00', '14:00', '15:00'],
-      'quarta': ['14:00', '15:00', '16:00', '17:00'],
-      'sexta': ['08:00', '09:00', '10:00', '11:00']
-    },
-    proximasConsultas: ['2025-09-16', '2025-09-18', '2025-09-20']
-  },
-  {
-    id: 'p2',
-    nome: 'Dr. Bruno Costa',
-    especialidade: 'Dermatologia',
-    clinicaIds: ['cl1', 'cl3'], // Trabalha em 2 clínicas
-    cidade: 'São Paulo',
-    distancia: 2.5,
-    avaliacao: 4.6,
-    numeroAvaliacoes: 89,
-    disponibilidade: {
-      'terca': ['09:00', '10:00', '11:00', '14:00', '15:00'],
-      'quinta': ['13:00', '14:00', '15:00', '16:00', '17:00']
-    },
-    proximasConsultas: ['2025-09-17', '2025-09-19', '2025-09-24']
-  },
-  {
-    id: 'p3',
-    nome: 'Dr. Carlos Oliveira',
-    especialidade: 'Psiquiatria',
-    clinicaIds: ['cl2', 'cl3'], // Trabalha em 2 clínicas
-    cidade: 'São Paulo',
-    distancia: 5.2,
-    avaliacao: 4.9,
-    numeroAvaliacoes: 203,
-    disponibilidade: {
-      'segunda': ['07:00', '08:00', '09:00', '18:00', '19:00'],
-      'terca': ['07:00', '08:00', '18:00', '19:00'],
-      'quinta': ['07:00', '18:00', '19:00', '20:00']
-    },
-    proximasConsultas: ['2025-09-16', '2025-09-17', '2025-09-19']
-  },
-  {
-    id: 'p4',
-    nome: 'Dra. Fernanda Lima',
-    especialidade: 'Psicologia',
-    clinicaIds: ['cl2', 'cl4'], // Trabalha em 2 clínicas
-    cidade: 'São Paulo',
-    distancia: 5.2,
-    avaliacao: 4.7,
-    numeroAvaliacoes: 134,
-    disponibilidade: {
-      'segunda': ['14:00', '15:00', '16:00', '17:00'],
-      'quarta': ['14:00', '15:00', '16:00', '17:00'],
-      'sexta': ['08:00', '09:00', '10:00', '14:00']
-    },
-    proximasConsultas: ['2025-09-18', '2025-09-20', '2025-09-23']
-  },
-  {
-    id: 'p5',
-    nome: 'Dr. Roberto Santos',
-    especialidade: 'Ortopedia',
-    clinicaIds: ['cl3', 'cl4'], // Trabalha em 2 clínicas
-    cidade: 'Guarulhos',
-    distancia: 12.8,
-    avaliacao: 4.5,
-    numeroAvaliacoes: 67,
-    disponibilidade: {
-      'segunda': ['08:00', '09:00', '10:00'],
-      'terca': ['08:00', '09:00', '10:00', '14:00'],
-      'quinta': ['14:00', '15:00', '16:00']
-    },
-    proximasConsultas: ['2025-09-16', '2025-09-17', '2025-09-19']
-  },
-  {
-    id: 'p6',
-    nome: 'Dra. Mariana Rocha',
-    especialidade: 'Pediatria',
-    clinicaIds: ['cl1', 'cl3'], // Trabalha em 2 clínicas
-    cidade: 'São Paulo',
-    distancia: 2.5,
-    avaliacao: 4.9,
-    numeroAvaliacoes: 245,
-    disponibilidade: {
-      'segunda': ['08:00', '09:00', '10:00', '11:00'],
-      'terca': ['08:00', '09:00', '10:00', '11:00'],
-      'quarta': ['13:00', '14:00', '15:00', '16:00'],
-      'quinta': ['08:00', '09:00', '10:00'],
-      'sexta': ['13:00', '14:00', '15:00']
-    },
-    proximasConsultas: ['2025-09-16', '2025-09-17', '2025-09-18']
-  },
-  {
-    id: 'p7',
-    nome: 'Dr. Eduardo Ferreira',
-    especialidade: 'Psiquiatria',
-    clinicaIds: ['cl3', 'cl4'], // Trabalha em 2 clínicas
-    cidade: 'Osasco',
-    distancia: 18.3,
-    avaliacao: 4.4,
-    numeroAvaliacoes: 98,
-    disponibilidade: {
-      'terca': ['19:00', '20:00', '21:00'],
-      'quinta': ['19:00', '20:00', '21:00'],
-      'sabado': ['08:00', '09:00', '10:00', '11:00']
-    },
-    proximasConsultas: ['2025-09-17', '2025-09-19', '2025-09-21']
-  }
-];
-
 const perfilCliente: ClientePerfil = {
   id: 'u1',
   nome: 'João Silva Santos',
@@ -325,6 +213,29 @@ export default function ClientePage() {
   const [ordenacao, setOrdenacao] = useState<'distancia' | 'avaliacao' | 'proximidade'>('distancia');
   const [dataSelecionada, setDataSelecionada] = useState('');
   const [horarioSelecionado, setHorarioSelecionado] = useState('');
+  
+  // Estados para dados da API
+  const [profissionaisDisponiveis, setProfissionaisDisponiveis] = useState<ProfissionalPublico[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Carregar profissionais da API
+  useEffect(() => {
+    const fetchProfessionais = async () => {
+      try {
+        const response = await fetch('/api/professionals/public');
+        if (response.ok) {
+          const data = await response.json();
+          setProfissionaisDisponiveis(data);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar profissionais:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfessionais();
+  }, []);
 
   // Verificar parâmetros da URL ao carregar
   useEffect(() => {
@@ -428,7 +339,7 @@ export default function ClientePage() {
     const dataObj = new Date(data);
     const diaSemana = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'][dataObj.getDay()];
     
-    return profissionalSelecionado.disponibilidade[diaSemana] || [];
+    return profissionalSelecionado.disponibilidade?.[diaSemana] || [];
   };
 
   const handleBusca = (termo: string) => {
@@ -941,7 +852,7 @@ export default function ClientePage() {
                   {/* Lista de Profissionais */}
                   <div className="space-y-4">
                     {profissionaisFiltrados.map(profissional => {
-                      const clinicas = clinicasDisponiveis.filter(c => profissional.clinicaIds.includes(c.id));
+                      const clinicas = clinicasDisponiveis.filter(c => profissional.clinicaIds?.includes(c.id));
                       return (
                         <div key={profissional.id} className="bg-white/5 border border-white/10 rounded-lg p-4 hover:bg-white/10 transition-colors">
                           <div className="flex items-start justify-between">
@@ -965,7 +876,7 @@ export default function ClientePage() {
                                   </div>
                                   <div className="text-gray-400 text-sm">📍 {profissional.distancia}km</div>
                                   <div className="text-gray-400 text-sm">
-                                    📅 Próxima: {new Date(profissional.proximasConsultas[0]).toLocaleDateString('pt-BR')}
+                                    📅 Próxima: {profissional.proximasConsultas?.[0] ? new Date(profissional.proximasConsultas[0]).toLocaleDateString('pt-BR') : 'Não disponível'}
                                   </div>
                                 </div>
                               </div>

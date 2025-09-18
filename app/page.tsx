@@ -17,12 +17,20 @@ interface ProfissionalPublico {
   id: string;
   nome: string;
   especialidade: string;
-  clinicaIds: string[]; // Mudança: agora é um array de IDs
+  cor?: string;
+  telefone?: string;
+  email?: string;
+  horarios?: any;
+  clinicaIds?: string[]; // Mudança: agora é um array de IDs
+  clinicaNome?: string; // Nome real da clínica
+  clinicaTelefone?: string; // Telefone real da clínica
   cidade: string;
-  distancia: number;
+  distancia?: number;
   avaliacao: number;
   numeroAvaliacoes: number;
-  proximasConsultas: string[];
+  duracaoConsulta?: number; // Duração em minutos
+  disponibilidade?: { [key: string]: string[] };
+  proximasConsultas?: string[];
 }
 
 interface Clinica {
@@ -52,23 +60,75 @@ export default function Home() {
   const [profissionaisDaEspecialidade, setProfissionaisDaEspecialidade] = useState<ProfissionalPublico[]>([]);
   const [mostrarCalendario, setMostrarCalendario] = useState(false);
   
+  // Estados para modal de agendamento
+  const [mostrarModalAgendamento, setMostrarModalAgendamento] = useState(false);
+  const [dadosPaciente, setDadosPaciente] = useState({
+    nome: '',
+    telefone: '',
+    email: ''
+  });
+  const [agendandoConsulta, setAgendandoConsulta] = useState(false);
+  
+  // Estados para dados da API
+  const [profissionaisDisponiveis, setProfissionaisDisponiveis] = useState<ProfissionalPublico[]>([]);
+  const [clinicasDisponiveis, setClinicasDisponiveis] = useState<Clinica[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Carregar profissionais e clínicas da API
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [professionalsResponse, clinicsResponse] = await Promise.all([
+          fetch('/api/professionals/public'),
+          fetch('/api/clinics/public')
+        ]);
+        
+        if (professionalsResponse.ok) {
+          const professionalsData = await professionalsResponse.json();
+          setProfissionaisDisponiveis(professionalsData);
+        }
+        
+        if (clinicsResponse.ok) {
+          const clinicsData = await clinicsResponse.json();
+          setClinicasDisponiveis(clinicsData);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar dados:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+  
   // Estados para o calendário
   const [dataAtual, setDataAtual] = useState(new Date());
-  const [tipoVisualizacao, setTipoVisualizacao] = useState<'semana' | 'mes'>('semana');
+  const [tipoVisualizacao, setTipoVisualizacao] = useState<'semana' | 'mes'>('mes'); // Começa com visualização mensal
 
   // Função para gerar horários disponíveis por dia
   const getHorariosPorDia = (data: Date) => {
-    const dataStr = data.toISOString().split('T')[0];
-    const horariosPadrao = [
-      '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-      '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30'
-    ];
+    if (!profissionalSelecionado && profissionaisDaEspecialidade.length === 0) {
+      return [];
+    }
+
+    const diaSemana = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'][data.getDay()];
     
-    // Simular alguns horários ocupados
-    const ocupados = Math.random() > 0.3 ? 
-      horariosPadrao.slice(0, Math.floor(Math.random() * 4)) : [];
+    // Se há um profissional específico selecionado
+    if (profissionalSelecionado) {
+      return profissionalSelecionado.disponibilidade?.[diaSemana] || [];
+    }
     
-    return horariosPadrao.filter(h => !ocupados.includes(h));
+    // Se há uma especialidade selecionada, combinar horários de todos os profissionais da especialidade
+    if (profissionaisDaEspecialidade.length > 0) {
+      const todosHorarios = profissionaisDaEspecialidade
+        .flatMap(prof => prof.disponibilidade?.[diaSemana] || []);
+      
+      // Remover duplicatas e ordenar
+      return [...new Set(todosHorarios)].sort();
+    }
+    
+    return [];
   };
 
   // Função para gerar dias da semana
@@ -85,6 +145,47 @@ export default function Home() {
       days.push(date);
     }
     return days;
+  };
+
+  // Função para gerar dias do mês (incluindo dias anteriores/próximos para preencher grid)
+  const getMonthDays = (baseDate: Date) => {
+    const start = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
+    const end = new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, 0);
+    
+    // Ajustar para começar no domingo
+    const startDay = start.getDay();
+    const startDate = new Date(start);
+    startDate.setDate(startDate.getDate() - startDay);
+    
+    const days = [];
+    for (let i = 0; i < 42; i++) { // 6 semanas x 7 dias
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + i);
+      days.push(date);
+    }
+    
+    return days;
+  };
+
+  // Função para verificar se uma data tem horários disponíveis
+  const hasAvailableSlots = (date: Date) => {
+    if (!profissionalSelecionado) return false;
+    
+    const dayOfWeek = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'][date.getDay()];
+    const horarios = getHorariosPorDia(date);
+    return horarios.length > 0;
+  };
+
+  // Função para lidar com clique no dia (mês -> semana)
+  const handleDayClick = (date: Date) => {
+    if (tipoVisualizacao === 'mes') {
+      if (hasAvailableSlots(date)) {
+        setDataAtual(date);
+        setTipoVisualizacao('semana');
+      }
+    } else {
+      setDataAtual(date);
+    }
   };
 
   // Função para navegar no calendário
@@ -118,117 +219,78 @@ export default function Home() {
     setHorarioSelecionado(horario);
   };
 
-  // Dados mockados (mesmos da área do cliente)
-  const profissionaisDisponiveis: ProfissionalPublico[] = [
-    {
-      id: '1',
-      nome: 'Dr. Carlos Silva',
-      especialidade: 'Cardiologia',
-      clinicaIds: ['1', '2'], // Trabalha em 2 clínicas
-      cidade: 'São Paulo',
-      distancia: 2.5,
-      avaliacao: 4.8,
-      numeroAvaliacoes: 127,
-      proximasConsultas: ['2025-09-15', '2025-09-16', '2025-09-18']
-    },
-    {
-      id: '2',
-      nome: 'Dra. Ana Santos',
-      especialidade: 'Dermatologia',
-      clinicaIds: ['1', '3'], // Trabalha em 2 clínicas
-      cidade: 'São Paulo',
-      distancia: 2.5,
-      avaliacao: 4.9,
-      numeroAvaliacoes: 203,
-      proximasConsultas: ['2025-09-14', '2025-09-17', '2025-09-19']
-    },
-    {
-      id: '3',
-      nome: 'Dr. Roberto Lima',
-      especialidade: 'Ortopedia',
-      clinicaIds: ['2', '4'], // Trabalha em 2 clínicas
-      cidade: 'Guarulhos',
-      distancia: 8.2,
-      avaliacao: 4.7,
-      numeroAvaliacoes: 89,
-      proximasConsultas: ['2025-09-16', '2025-09-20', '2025-09-23']
-    },
-    {
-      id: '4',
-      nome: 'Dra. Mariana Costa',
-      especialidade: 'Psiquiatria',
-      clinicaIds: ['1', '3', '4'], // Trabalha em 3 clínicas
-      cidade: 'Osasco',
-      distancia: 12.1,
-      avaliacao: 4.9,
-      numeroAvaliacoes: 156,
-      proximasConsultas: ['2025-09-15', '2025-09-18', '2025-09-22']
-    },
-    {
-      id: '5',
-      nome: 'Dr. João Pereira',
-      especialidade: 'Psicologia',
-      clinicaIds: ['3', '4'], // Trabalha em 2 clínicas
-      cidade: 'São Paulo',
-      distancia: 5.3,
-      avaliacao: 4.6,
-      numeroAvaliacoes: 94,
-      proximasConsultas: ['2025-09-17', '2025-09-19', '2025-09-24']
-    },
-    {
-      id: '6',
-      nome: 'Dra. Fernanda Oliveira',
-      especialidade: 'Ginecologia',
-      clinicaIds: ['1', '2', '4'], // Trabalha em 3 clínicas
-      cidade: 'Guarulhos',
-      distancia: 8.2,
-      avaliacao: 4.8,
-      numeroAvaliacoes: 178,
-      proximasConsultas: ['2025-09-14', '2025-09-16', '2025-09-21']
-    },
-    {
-      id: '7',
-      nome: 'Dr. Paulo Mendes',
-      especialidade: 'Neurologia',
-      clinicaIds: ['1', '2', '3'], // Trabalha em 3 clínicas
-      cidade: 'São Paulo',
-      distancia: 2.5,
-      avaliacao: 4.7,
-      numeroAvaliacoes: 112,
-      proximasConsultas: ['2025-09-18', '2025-09-20', '2025-09-25']
+  // Função para confirmar agendamento (abre modal)
+  const confirmarAgendamento = () => {
+    if (!profissionalSelecionado || !dataSelecionada || !horarioSelecionado) {
+      alert('Por favor, selecione médico, data e horário');
+      return;
     }
-  ];
+    setMostrarModalAgendamento(true);
+  };
 
-  const clinicasDisponiveis: Clinica[] = [
-    {
-      id: '1',
-      nome: 'Clínica Saúde Prime',
-      endereco: 'Av. Paulista, 1000 - São Paulo/SP',
-      telefone: '(11) 3000-0001',
-      especialidades: ['Cardiologia', 'Dermatologia', 'Neurologia']
-    },
-    {
-      id: '2',
-      nome: 'Centro Médico Excellence',
-      endereco: 'R. das Flores, 500 - Guarulhos/SP',
-      telefone: '(11) 3000-0002',
-      especialidades: ['Ortopedia', 'Ginecologia']
-    },
-    {
-      id: '3',
-      nome: 'Instituto de Saúde Mental',
-      endereco: 'Av. dos Estados, 300 - Osasco/SP',
-      telefone: '(11) 3000-0003',
-      especialidades: ['Psiquiatria']
-    },
-    {
-      id: '4',
-      nome: 'Clínica Bem Estar',
-      endereco: 'R. Augusta, 800 - São Paulo/SP',
-      telefone: '(11) 3000-0004',
-      especialidades: ['Psicologia']
+  // Função para finalizar agendamento
+  const finalizarAgendamento = async () => {
+    if (!dadosPaciente.nome || !dadosPaciente.telefone || !dadosPaciente.email) {
+      alert('Por favor, preencha todos os dados do paciente');
+      return;
     }
-  ];
+
+    if (!profissionalSelecionado || !dataSelecionada || !horarioSelecionado) {
+      alert('Dados da consulta incompletos');
+      return;
+    }
+
+    setAgendandoConsulta(true);
+
+    try {
+      // Calcular horário de fim (usar duração da consulta do profissional)
+      const duracaoConsulta = profissionalSelecionado.duracaoConsulta || 30;
+      const [hora, minuto] = horarioSelecionado.split(':').map(Number);
+      const inicioDate = new Date(`${dataSelecionada}T${horarioSelecionado}:00`);
+      const fimDate = new Date(inicioDate.getTime() + duracaoConsulta * 60000);
+
+      const novoAgendamento = {
+        paciente: dadosPaciente.nome,
+        pacienteTelefone: dadosPaciente.telefone,
+        pacienteEmail: dadosPaciente.email,
+        profissionalId: profissionalSelecionado.id,
+        profissionalNome: profissionalSelecionado.nome,
+        especialidade: profissionalSelecionado.especialidade,
+        inicio: inicioDate.toISOString(),
+        fim: fimDate.toISOString(),
+        status: 'confirmado' as const
+      };
+
+      const response = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(novoAgendamento),
+      });
+
+      if (response.ok) {
+        alert('Consulta agendada com sucesso! A clínica entrará em contato para confirmação.');
+        
+        // Reset dos estados
+        setMostrarModalAgendamento(false);
+        setDadosPaciente({ nome: '', telefone: '', email: '' });
+        setProfissionalSelecionado(null);
+        setDataSelecionada('');
+        setHorarioSelecionado('');
+        setMostrarCalendario(false);
+        setTermoBusca('');
+      } else {
+        const error = await response.json();
+        alert(`Erro ao agendar consulta: ${error.message || 'Tente novamente'}`);
+      }
+    } catch (error) {
+      console.error('Erro ao agendar consulta:', error);
+      alert('Erro ao agendar consulta. Tente novamente.');
+    } finally {
+      setAgendandoConsulta(false);
+    }
+  };
 
   const todasEspecialidades = [...new Set(profissionaisDisponiveis.map(p => p.especialidade))];
 
@@ -266,6 +328,13 @@ export default function Home() {
     setTermoBusca(profissional.nome);
     setMostrarSugestoes(false);
     setMostrarCalendario(true);
+    
+    // Auto-selecionar clínica se há apenas uma disponível
+    if (clinicasDisponiveis.length === 1) {
+      setClinicaSelecionada(clinicasDisponiveis[0]);
+    } else {
+      setClinicaSelecionada(null);
+    }
   };
 
   const selecionarEspecialidade = (especialidade: string) => {
@@ -322,23 +391,16 @@ export default function Home() {
 
   // Função para obter clínicas disponíveis para um profissional
   const getClinicasDisponiveis = () => {
-    if (profissionalSelecionado) {
-      return clinicasDisponiveis.filter(c => profissionalSelecionado.clinicaIds.includes(c.id));
+    if (profissionalSelecionado && profissionalSelecionado.clinicaIds) {
+      return clinicasDisponiveis.filter(c => profissionalSelecionado.clinicaIds?.includes(c.id));
     }
     if (especialidadeSelecionada && profissionaisDaEspecialidade.length > 0) {
-      const clinicaIds = [...new Set(profissionaisDaEspecialidade.flatMap(p => p.clinicaIds))];
+      const clinicaIds = [...new Set(profissionaisDaEspecialidade.flatMap(p => p.clinicaIds || []))];
       return clinicasDisponiveis.filter(c => clinicaIds.includes(c.id));
     }
     return [];
   };
 
-  // Função para confirmar agendamento
-  const confirmarAgendamento = () => {
-    if (profissionalSelecionado && clinicaSelecionada && dataSelecionada && horarioSelecionado) {
-      alert(`Consulta agendada com sucesso!\n\nProfissional: ${profissionalSelecionado.nome}\nClínica: ${clinicaSelecionada.nome}\nData: ${new Date(dataSelecionada).toLocaleDateString('pt-BR')}\nHorário: ${horarioSelecionado}`);
-      resetarBusca();
-    }
-  };
   useEffect(() => {
     const navLinks: HTMLAnchorElement[] = Array.from(document.querySelectorAll('header nav a'));
     const sections: HTMLElement[] = Array.from(document.querySelectorAll('section[id]'));
@@ -457,7 +519,13 @@ export default function Home() {
                                   </div>
                                 )}
                                 
-                                {sugestoesProfissionais.length > 0 && (
+                                {loading && termoBusca.length > 0 && (
+                                  <div className="p-6 text-center">
+                                    <p className="text-gray-400">Carregando profissionais...</p>
+                                  </div>
+                                )}
+                                
+                                {!loading && sugestoesProfissionais.length > 0 && (
                                   <div className="p-3">
                                     <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Profissionais</p>
                                     {sugestoesProfissionais.map(profissional => (
@@ -582,8 +650,8 @@ export default function Home() {
                             </div>
                           )}
 
-                          {/* Seleção de Clínica */}
-                          {profissionalSelecionado && (
+                          {/* Seleção de Clínica - Apenas quando há múltiplas clínicas */}
+                          {profissionalSelecionado && clinicasDisponiveis.length > 1 && (
                             <div className="mb-6">
                               <label className="block text-sm font-medium text-gray-300 mb-3">Escolha a clínica:</label>
                               <div className="grid gap-3">
@@ -608,14 +676,37 @@ export default function Home() {
                             </div>
                           )}
 
+                          {/* Clínica única - Exibição simplificada */}
+                          {profissionalSelecionado && clinicasDisponiveis.length === 1 && (
+                            <div className="mb-6">
+                              <div className="p-4 rounded-lg bg-green-600/20 border border-green-500">
+                                <div>
+                                  <p className="font-medium text-white">{clinicasDisponiveis[0].nome}</p>
+                                  <p className="text-sm text-gray-400 mt-1">📍 {clinicasDisponiveis[0].endereco}</p>
+                                  <p className="text-sm text-gray-400">📞 {clinicasDisponiveis[0].telefone}</p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
                           {/* Calendário Interativo */}
-                          {profissionalSelecionado && clinicaSelecionada && (
+                          {profissionalSelecionado && (clinicaSelecionada || clinicasDisponiveis.length === 1) && (
                             <div className="space-y-6">
                               {/* Header do Calendário */}
                               <div className="flex items-center justify-between">
                                 <h4 className="text-lg font-semibold text-white">Selecione data e horário</h4>
                                 <div className="flex items-center gap-2">
                                   <div className="flex bg-white/10 rounded-lg p-1">
+                                    <button
+                                      onClick={() => setTipoVisualizacao('mes')}
+                                      className={`px-3 py-1 rounded text-sm font-medium transition ${
+                                        tipoVisualizacao === 'mes'
+                                          ? 'bg-blue-600 text-white'
+                                          : 'text-gray-400 hover:text-white'
+                                      }`}
+                                    >
+                                      Mês
+                                    </button>
                                     <button
                                       onClick={() => setTipoVisualizacao('semana')}
                                       className={`px-3 py-1 rounded text-sm font-medium transition ${
@@ -649,9 +740,91 @@ export default function Home() {
                                 </div>
                               </div>
 
+                              {/* Calendário Mensal */}
+                              {tipoVisualizacao === 'mes' && (
+                                <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                                  <div className="mb-4">
+                                    <h3 className="text-lg font-medium text-white text-center">
+                                      {dataAtual.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                                    </h3>
+                                  </div>
+                                  
+                                  <div className="grid grid-cols-7 gap-2 mb-4">
+                                    {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((dia, index) => (
+                                      <div key={index} className="text-center py-2 text-sm font-medium text-gray-400">
+                                        {dia}
+                                      </div>
+                                    ))}
+                                  </div>
+                                  
+                                  <div className="grid grid-cols-7 gap-2">
+                                    {getMonthDays(dataAtual).map((data, index) => {
+                                      const hoje = new Date();
+                                      const isPast = data < hoje;
+                                      const isToday = data.toDateString() === hoje.toDateString();
+                                      const isCurrentMonth = data.getMonth() === dataAtual.getMonth();
+                                      const hasSlots = hasAvailableSlots(data);
+                                      
+                                      return (
+                                        <button
+                                          key={index}
+                                          onClick={() => handleDayClick(data)}
+                                          disabled={isPast || !hasSlots}
+                                          className={`
+                                            aspect-square p-2 rounded-lg border transition-colors text-sm font-medium
+                                            ${!isCurrentMonth ? 'text-gray-600 border-transparent' : ''}
+                                            ${isPast ? 'text-gray-500 border-gray-700 cursor-not-allowed' :
+                                              hasSlots ? 'text-white border-white/20 bg-blue-600/20 hover:bg-blue-600/40 cursor-pointer' :
+                                              'text-gray-400 border-white/10 cursor-default'}
+                                            ${isToday ? 'ring-2 ring-blue-500' : ''}
+                                          `}
+                                        >
+                                          <div className="flex flex-col items-center">
+                                            <span>{data.getDate()}</span>
+                                            {hasSlots && !isPast && isCurrentMonth && (
+                                              <div className="w-1 h-1 bg-green-400 rounded-full mt-1"></div>
+                                            )}
+                                          </div>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                  
+                                  {/* Legenda */}
+                                  <div className="mt-4 flex items-center justify-center gap-6 text-xs">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-3 h-3 bg-blue-600/20 border border-white/20 rounded"></div>
+                                      <span className="text-gray-400">Com horários</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-3 h-3 bg-gray-700 rounded"></div>
+                                      <span className="text-gray-400">Sem horários</span>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="mt-4 text-center">
+                                    <p className="text-sm text-gray-400">
+                                      Clique em um dia com horários disponíveis para ver os detalhes
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+
                               {/* Calendário Semanal */}
                               {tipoVisualizacao === 'semana' && (
                                 <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                                  <div className="mb-4 flex items-center justify-between">
+                                    <h3 className="text-lg font-medium text-white">
+                                      Semana de {getWeekDays(dataAtual)[0].toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} a {getWeekDays(dataAtual)[6].toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                                    </h3>
+                                    <button
+                                      onClick={() => setTipoVisualizacao('mes')}
+                                      className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+                                    >
+                                      ← Voltar ao mês
+                                    </button>
+                                  </div>
+                                  
                                   <div className="grid grid-cols-7 gap-2 mb-4">
                                     {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((dia, index) => (
                                       <div key={index} className="text-center py-2 text-sm font-medium text-gray-400">
@@ -755,13 +928,13 @@ export default function Home() {
                           )}
 
                           {/* Botão de Confirmação */}
-                          {profissionalSelecionado && clinicaSelecionada && dataSelecionada && horarioSelecionado && (
+                          {profissionalSelecionado && (clinicaSelecionada || clinicasDisponiveis.length === 1) && dataSelecionada && horarioSelecionado && (
                             <div className="mt-6 pt-6 border-t border-white/10">
                               <button
                                 onClick={confirmarAgendamento}
                                 className="w-full py-4 bg-gradient-to-r from-green-600 to-emerald-500 text-white rounded-lg font-semibold hover:brightness-110 transition-all text-lg"
                               >
-                                Confirmar Agendamento
+                                Agendar Consulta
                               </button>
                             </div>
                           )}
@@ -1150,6 +1323,97 @@ export default function Home() {
           </div>
         </div>
       </footer>
+
+      {/* Modal de Dados do Paciente */}
+      {mostrarModalAgendamento && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 rounded-xl p-6 w-full max-w-md border border-white/10">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-white">Dados do Paciente</h3>
+              <button
+                onClick={() => setMostrarModalAgendamento(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Resumo do Agendamento */}
+            <div className="mb-6 p-4 bg-blue-600/10 border border-blue-600/20 rounded-lg">
+              <h4 className="text-sm font-medium text-blue-300 mb-2">Resumo da Consulta:</h4>
+              <div className="space-y-1 text-sm text-gray-300">
+                <p><span className="text-gray-400">Médico:</span> {profissionalSelecionado?.nome}</p>
+                <p><span className="text-gray-400">Especialidade:</span> {profissionalSelecionado?.especialidade}</p>
+                <p><span className="text-gray-400">Data:</span> {dataSelecionada && new Date(dataSelecionada).toLocaleDateString('pt-BR')}</p>
+                <p><span className="text-gray-400">Horário:</span> {horarioSelecionado}</p>
+                <p><span className="text-gray-400">Clínica:</span> {clinicaSelecionada?.nome || clinicasDisponiveis[0]?.nome}</p>
+              </div>
+            </div>
+
+            {/* Formulário de Dados */}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Nome Completo *</label>
+                <input
+                  type="text"
+                  value={dadosPaciente.nome}
+                  onChange={(e) => setDadosPaciente(prev => ({ ...prev, nome: e.target.value }))}
+                  placeholder="Ex: João Silva"
+                  className="w-full bg-gray-800 border border-white/20 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Telefone *</label>
+                <input
+                  type="tel"
+                  value={dadosPaciente.telefone}
+                  onChange={(e) => setDadosPaciente(prev => ({ ...prev, telefone: e.target.value }))}
+                  placeholder="(11) 99999-9999"
+                  className="w-full bg-gray-800 border border-white/20 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">E-mail *</label>
+                <input
+                  type="email"
+                  value={dadosPaciente.email}
+                  onChange={(e) => setDadosPaciente(prev => ({ ...prev, email: e.target.value }))}
+                  placeholder="joao@email.com"
+                  className="w-full bg-gray-800 border border-white/20 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500"
+                />
+              </div>
+            </div>
+
+            {/* Aviso */}
+            <div className="mt-4 p-3 bg-yellow-600/10 border border-yellow-600/20 rounded-lg">
+              <p className="text-sm text-yellow-300">
+                <span className="font-medium">📞 Confirmação:</span> A clínica entrará em contato para confirmar sua consulta.
+              </p>
+            </div>
+
+            {/* Botões */}
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setMostrarModalAgendamento(false)}
+                className="flex-1 py-3 bg-gray-700 text-white rounded-lg font-medium hover:bg-gray-600 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={finalizarAgendamento}
+                disabled={agendandoConsulta || !dadosPaciente.nome || !dadosPaciente.telefone || !dadosPaciente.email}
+                className="flex-1 py-3 bg-gradient-to-r from-green-600 to-emerald-500 text-white rounded-lg font-medium hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {agendandoConsulta ? 'Agendando...' : 'Confirmar Agendamento'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Floating CTA */}
       <button aria-label="Agendar consulta" className="floating-cta fixed bottom-6 right-6 z-50 group">
